@@ -1,0 +1,18 @@
+name: tps-flow-md
+channels:
+  - pytorch
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.11.7
+  - pip=23.3.2
+  - pytorch=2.1.2
+  - openmm=8.1.1
+  - mdtraj=1.9.8
+  - jax=0.4.23
+  - flax=0.8.2
+  - tqdm=4.65.0
+  - pip:
+    - dmff @ git+https://github.com/deepmodeling/DMFF@v1.0.0
+    - matplotlib==3.8.2
+    - rdkit==2023.3.3

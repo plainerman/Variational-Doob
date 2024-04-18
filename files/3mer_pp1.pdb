@@ -1,0 +1,72 @@
+REMARK   1 CREATED WITH OPENMM 7.7, 2022-04-26
+CRYST1    8.809   11.467   12.142  90.00  90.00  90.00 P 1           1 
+HETATM    1  H1  ACE A   1       6.516   0.749   7.689  1.00  0.00           H  
+HETATM    2  CH3 ACE A   1       7.221   1.579   7.740  1.00  0.00           C  
+HETATM    3  H2  ACE A   1       8.207   1.170   7.515  1.00  0.00           H  
+HETATM    4  H3  ACE A   1       7.179   1.958   8.761  1.00  0.00           H  
+HETATM    5  C   ACE A   1       6.800   2.516   6.666  1.00  0.00           C  
+HETATM    6  O   ACE A   1       5.885   2.196   5.959  1.00  0.00           O  
+ATOM      7  N   PRO A   2       7.484   3.656   6.504  1.00  0.00           N  
+ATOM      8  CD  PRO A   2       8.455   4.179   7.526  1.00  0.00           C  
+ATOM      9  HD3 PRO A   2       9.285   3.496   7.713  1.00  0.00           H  
+ATOM     10  HD2 PRO A   2       7.903   4.421   8.434  1.00  0.00           H  
+ATOM     11  CG  PRO A   2       8.928   5.525   7.090  1.00  0.00           C  
+ATOM     12  HG3 PRO A   2       9.740   5.543   6.363  1.00  0.00           H  
+ATOM     13  HG2 PRO A   2       9.069   6.266   7.877  1.00  0.00           H  
+ATOM     14  CB  PRO A   2       7.646   6.045   6.350  1.00  0.00           C  
+ATOM     15  HB3 PRO A   2       7.934   6.924   5.773  1.00  0.00           H  
+ATOM     16  HB2 PRO A   2       6.876   6.258   7.091  1.00  0.00           H  
+ATOM     17  CA  PRO A   2       7.178   4.797   5.602  1.00  0.00           C  
+ATOM     18  HA  PRO A   2       6.094   4.850   5.493  1.00  0.00           H  
+ATOM     19  C   PRO A   2       7.875   4.708   4.219  1.00  0.00           C  
+ATOM     20  O   PRO A   2       8.814   3.958   4.087  1.00  0.00           O  
+ATOM     21  N   PRO A   3       7.489   5.573   3.237  1.00  0.00           N  
+ATOM     22  CD  PRO A   3       8.282   5.702   2.058  1.00  0.00           C  
+ATOM     23  HD3 PRO A   3       8.218   4.815   1.427  1.00  0.00           H  
+ATOM     24  HD2 PRO A   3       9.316   5.763   2.399  1.00  0.00           H  
+ATOM     25  CG  PRO A   3       7.838   7.073   1.468  1.00  0.00           C  
+ATOM     26  HG3 PRO A   3       7.768   7.111   0.381  1.00  0.00           H  
+ATOM     27  HG2 PRO A   3       8.537   7.824   1.837  1.00  0.00           H  
+ATOM     28  CB  PRO A   3       6.454   7.383   1.939  1.00  0.00           C  
+ATOM     29  HB3 PRO A   3       5.666   7.087   1.246  1.00  0.00           H  
+ATOM     30  HB2 PRO A   3       6.339   8.457   2.089  1.00  0.00           H  
+ATOM     31  CA  PRO A   3       6.357   6.515   3.276  1.00  0.00           C  
+ATOM     32  HA  PRO A   3       6.640   7.188   4.086  1.00  0.00           H  
+ATOM     33  C   PRO A   3       4.922   6.078   3.537  1.00  0.00           C  
+ATOM     34  O   PRO A   3       4.273   6.719   4.359  1.00  0.00           O  
+ATOM     35  N   PRO A   4       4.409   4.934   3.089  1.00  0.00           N  
+ATOM     36  CD  PRO A   4       3.438   4.013   3.771  1.00  0.00           C  
+ATOM     37  HD3 PRO A   4       2.400   4.290   3.586  1.00  0.00           H  
+ATOM     38  HD2 PRO A   4       3.721   3.885   4.816  1.00  0.00           H  
+ATOM     39  CG  PRO A   4       3.456   2.640   3.075  1.00  0.00           C  
+ATOM     40  HG3 PRO A   4       2.536   2.457   2.519  1.00  0.00           H  
+ATOM     41  HG2 PRO A   4       3.546   1.796   3.759  1.00  0.00           H  
+ATOM     42  CB  PRO A   4       4.694   2.791   2.098  1.00  0.00           C  
+ATOM     43  HB3 PRO A   4       4.491   2.129   1.256  1.00  0.00           H  
+ATOM     44  HB2 PRO A   4       5.642   2.599   2.602  1.00  0.00           H  
+ATOM     45  CA  PRO A   4       4.826   4.335   1.861  1.00  0.00           C  
+ATOM     46  HA  PRO A   4       5.873   4.571   1.667  1.00  0.00           H  
+ATOM     47  C   PRO A   4       3.950   4.826   0.625  1.00  0.00           C  
+ATOM     48  O   PRO A   4       2.705   4.925   0.735  1.00  0.00           O  
+HETATM   49  N   NME A   5       4.658   5.033  -0.525  1.00  0.00           N  
+HETATM   50  H   NME A   5       5.656   5.169  -0.449  1.00  0.00           H  
+HETATM   51  C   NME A   5       4.000   5.453  -1.773  1.00  0.00           C  
+HETATM   52  H1  NME A   5       3.794   4.646  -2.476  1.00  0.00           H  
+HETATM   53  H2  NME A   5       3.158   6.106  -1.545  1.00  0.00           H  
+HETATM   54  H3  NME A   5       4.741   6.110  -2.229  1.00  0.00           H  
+TER      55      NME A   5
+CONECT    1    2
+CONECT    2    5    1    3    4
+CONECT    3    2
+CONECT    4    2
+CONECT    5    2    6    7
+CONECT    6    5
+CONECT    7    5
+CONECT   47   49
+CONECT   49   47   51   50
+CONECT   50   49
+CONECT   51   52   53   54   49
+CONECT   52   51
+CONECT   53   51
+CONECT   54   51
+END
