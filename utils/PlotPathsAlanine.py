@@ -125,7 +125,6 @@ def PlotPathsAlanine(paths, paths_forward, target, filename, paths_linear=None):
 
     target = target.squeeze().detach().cpu().numpy()
 
-
     cm = plt.get_cmap('gist_rainbow')
     ax.set_prop_cycle(color=[cm(1. * i / paths_.shape[0]) for i in range(paths_.shape[0])])
 
@@ -170,7 +169,6 @@ def PlotPathsAlanine(paths, paths_forward, target, filename, paths_linear=None):
     plt.savefig(f"{filename}_forward_point.png")
     plt.clf()
 
-    
     fig = plt.figure(figsize=(7, 7))
     ax = fig.add_subplot(111)
     plt.xlim([-np.pi, np.pi])
