@@ -16,3 +16,4 @@ dependencies:
     - dmff @ git+https://github.com/deepmodeling/DMFF@v1.0.0
     - matplotlib==3.8.2
     - rdkit==2023.3.3
+    - ParmEd==4.2.2
