@@ -60,12 +60,10 @@ if __name__ == '__main__':
         return _U(_x.reshape(22, 3), box, pairs, ff.paramset.parameters)
 
 
+    @jax.jit
+    @jax.vmap
     def dUdx_fn_unscaled(_x):
         return jax.grad(lambda _x: U(_x).sum())(_x)
-
-
-    dUdx_fn_unscaled = jax.vmap(dUdx_fn_unscaled)
-    dUdx_fn_unscaled = jax.jit(dUdx_fn_unscaled)
 
 
     @jax.jit
@@ -122,7 +120,8 @@ if __name__ == '__main__':
     # again, we compare the velocities in the same way as we did with the positions
     _v_v1 = jax.random.normal(velocity_key, _x.shape) * jnp.sqrt(kbT / mass)
 
-    velocity_variance = unit.Quantity(1 / mass, unit=1 / unit.dalton) * unit.BOLTZMANN_CONSTANT_kB * unit.Quantity(temp, unit=unit.kelvin)
+    velocity_variance = unit.Quantity(1 / mass, unit=1 / unit.dalton) * unit.BOLTZMANN_CONSTANT_kB * unit.Quantity(temp,
+                                                                                                                   unit=unit.kelvin)
     # Although velocity+variance is of the unit J / Da = m^2 / s^2, openmm cannot handle this directly and we need to convert it
     velocity_variance_in_si = 1 / physical_constants['unified atomic mass unit'][
         0] * velocity_variance.value_in_unit(unit.joule / unit.dalton)

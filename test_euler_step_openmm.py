@@ -59,12 +59,10 @@ if __name__ == '__main__':
         return _U(_x.reshape(22, 3), box, pairs, ff.paramset.parameters)
 
 
+    @jax.jit
+    @jax.vmap
     def dUdx_fn_unscaled(_x):
         return jax.grad(lambda _x: U(_x).sum())(_x)
-
-
-    dUdx_fn_unscaled = jax.vmap(dUdx_fn_unscaled)
-    dUdx_fn_unscaled = jax.jit(dUdx_fn_unscaled)
 
 
     @jax.jit
