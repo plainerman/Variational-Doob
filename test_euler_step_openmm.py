@@ -35,7 +35,6 @@ if __name__ == '__main__':
     # Obtain xi
     xi = jnp.sqrt(2 * kbT / mass / gamma)
 
-
     # Initialize the potential energy with amber forcefields
     ff = Hamiltonian('amber14/protein.ff14SB.xml', 'amber14/tip3p.xml')
     potentials = ff.createPotential(init_pdb.topology,
@@ -49,6 +48,7 @@ if __name__ == '__main__':
     nbList.allocate(init_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer))
     pairs = nbList.pairs
 
+
     @jax.jit
     def U(_x):
         """
@@ -58,20 +58,25 @@ if __name__ == '__main__':
 
         return _U(_x.reshape(22, 3), box, pairs, ff.paramset.parameters)
 
+
     def dUdx_fn_unscaled(_x):
         return jax.grad(lambda _x: U(_x).sum())(_x)
 
+
     dUdx_fn_unscaled = jax.vmap(dUdx_fn_unscaled)
     dUdx_fn_unscaled = jax.jit(dUdx_fn_unscaled)
+
 
     @jax.jit
     def dUdx_fn(_x):
         return dUdx_fn_unscaled(_x) / mass / gamma
 
+
     @jax.jit
     def step(_x, _key):
         """Perform one step of forward euler"""
         return _x - dt * dUdx_fn(_x) + jnp.sqrt(dt) * xi * jax.random.normal(_key, _x.shape)
+
 
     def step_units(_x, _key):
         _x = unit.Quantity(_x.reshape(22, 3), unit.nanometer)
@@ -94,6 +99,7 @@ if __name__ == '__main__':
 
         new_x = new_x_det + noise
         return new_x.value_in_unit(unit.nanometer).reshape(1, 66)
+
 
     key = jax.random.PRNGKey(1)
     key, velocity_key = jax.random.split(key)
