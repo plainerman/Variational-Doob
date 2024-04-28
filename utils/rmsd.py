@@ -7,24 +7,20 @@ From https://hunterheidenreich.com/posts/kabsch_algorithm/ and adapted
 
 
 @jax.jit
-def kabsch(P, Q):
+def kabsch_align(P, Q):
     """
     Computes the optimal rotation and translation to align two sets of points (P -> Q),
     and their RMSD.
 
     :param P: A Nx3 matrix of points
     :param Q: A Nx3 matrix of points
-    :return: A tuple containing the optimal rotation matrix, the optimal
-             translation vector, and the RMSD.
+    :return: Return aligned P and Q
     """
     assert P.shape == Q.shape, "Matrix dimensions must match"
 
     # Compute centroids
     centroid_P = jnp.mean(P, axis=0)
     centroid_Q = jnp.mean(Q, axis=0)
-
-    # Optimal translation
-    t = centroid_Q - centroid_P
 
     # Center the points
     p = P - centroid_P
@@ -42,4 +38,10 @@ def kabsch(P, Q):
     # Optimal rotation
     R = jnp.dot(Vt.T, U.T)
 
-    return jnp.sqrt(jnp.sum(jnp.square(jnp.dot(p, R.T) - q)) / P.shape[0])
+    return jnp.dot(p, R.T), q
+
+
+@jax.jit
+def kabsch_rmsd(P, Q):
+    P_aligned, Q_aligned = kabsch_align(P, Q)
+    return jnp.sqrt(jnp.sum(jnp.square(P_aligned - Q_aligned)) / P.shape[0])
