@@ -3,10 +3,7 @@ import jax
 import numpy as np
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
-import optax
-from flax import linen as nn
-from flax.training import train_state
-from tqdm import trange
+from tqdm import trange, tqdm
 
 # install openmm (from conda)
 import openmm.app as app
@@ -16,9 +13,10 @@ from dmff import Hamiltonian, NeighborList
 # install mdtraj
 import mdtraj as md
 
-import tps
+from tps import first_order as tps1
+from tps import second_order as tps2
+from tps.plot import PeriodicPathHistogram
 # helper function for plotting in 2D
-from utils.PlotPathsAlanine_jax import PlotPathsAlanine
 from matplotlib import colors
 
 from utils.animation import save_trajectory, to_md_traj
@@ -67,7 +65,7 @@ def phis_psis(position, mdtraj_topology):
     return jnp.array([phi, psi]).T
 
 
-def ramachandran(samples, bins=100, path=None, paths=None):
+def ramachandran(samples, bins=100, path=None, paths=None, states=None, alpha=1.0):
     if samples is not None:
         plt.hist2d(samples[:, 0], samples[:, 1], bins=bins, norm=colors.LogNorm(), rasterized=True)
     plt.xlim(-np.pi, np.pi)
@@ -98,15 +96,20 @@ def ramachandran(samples, bins=100, path=None, paths=None):
         for path in paths:
             draw_path(path, color='blue')
 
+    for state in (states if states is not None else []):
+        c = plt.Circle(state['center'], radius=state['radius'], edgecolor='gray', facecolor='white', ls='--', lw=0.7, alpha=alpha)
+        plt.gca().add_patch(c)
+        plt.gca().annotate(state['name'], xy=state['center'], ha="center", va="center")
 
-dt_as_unit = unit.Quantity(value=1, unit=unit.microsecond)
+
+dt_as_unit = unit.Quantity(value=1, unit=unit.femtosecond)
 dt_in_ps = dt_as_unit.value_in_unit(unit.picosecond)
 dt = dt_as_unit.value_in_unit(unit.second)
 
-gamma_as_unit = 1.0 / unit.second
+gamma_as_unit = 1.0 / unit.picosecond
 # actually gamma is 1/s, but we are working without units and just need the correct scaling
 # TODO: try to get rid of this duplicate definition
-gamma = 1.0 * unit.second
+gamma = 1.0 * unit.picosecond
 gamma_in_ps = gamma.value_in_unit(unit.picosecond)
 gamma = gamma.value_in_unit(unit.second)
 
@@ -125,8 +128,8 @@ def is_within(_phis_psis, _center, _radius, _period=2 * jnp.pi):
 deg = 180.0 / jnp.pi
 
 if __name__ == '__main__':
-    init_pdb = app.PDBFile("./files/AD_c7eq.pdb")
-    target_pdb = app.PDBFile("./files/AD_c7ax.pdb")
+    init_pdb = app.PDBFile("./files/AD_A.pdb")
+    target_pdb = app.PDBFile("./files/AD_B.pdb")
     mdtraj_topology = md.Topology.from_openmm(init_pdb.topology)
 
     savedir = f"baselines/alanine"
@@ -148,6 +151,7 @@ if __name__ == '__main__':
     A, B = kabsch_align(A, B)
     A, B = A.reshape(1, -1), B.reshape(1, -1)
 
+
     # Initialize the potential energy with amber forcefields
     ff = Hamiltonian('amber14/protein.ff14SB.xml', 'amber14/tip3p.xml')
     potentials = ff.createPotential(init_pdb.topology,
@@ -162,6 +166,7 @@ if __name__ == '__main__':
     pairs = nbList.pairs
 
 
+    @jax.jit
     def U(_x):
         """
         Calling U by U(x, box, pairs, ff.paramset.parameters), x is [22, 3] and output the energy, if it is batched, use vmap
@@ -173,8 +178,13 @@ if __name__ == '__main__':
 
     @jax.jit
     @jax.vmap
+    def dUdx_fn_unscaled(_x):
+        return jax.grad(lambda _x: U(_x).sum())(_x)
+
+
+    @jax.jit
     def dUdx_fn(_x):
-        return jax.grad(lambda _x: U(_x).sum())(_x) / mass / gamma
+        return dUdx_fn_unscaled(_x) / mass / gamma
 
 
     @jax.jit
@@ -183,16 +193,40 @@ if __name__ == '__main__':
         return _x - dt * dUdx_fn(_x) + jnp.sqrt(dt) * xi * jax.random.normal(_key, _x.shape)
 
 
+    @jax.jit
+    def step_langevin_forward(_x, _v, _key):
+        """Perform one step of forward langevin"""
+        alpha = jnp.exp(-gamma_in_ps * dt_in_ps)
+        f_scale = (1 - alpha) / gamma_in_ps
+        new_v_det = alpha * _v + f_scale * -dUdx_fn_unscaled(_x) / mass
+        new_v = new_v_det + jnp.sqrt(kbT * (1 - alpha ** 2) / mass) * jax.random.normal(_key, _x.shape)
+
+        return _x + dt_in_ps * new_v, new_v
+
+
+    @jax.jit
+    def step_langevin_backward(_x, _v, _key):
+        """Perform one step of backward langevin"""
+        alpha = jnp.exp(-gamma_in_ps * dt_in_ps)
+        f_scale = (1 - alpha) / gamma_in_ps
+        prev_x = _x - dt_in_ps * _v
+        prev_v = 1 / alpha * (_v + f_scale * dUdx_fn_unscaled(prev_x) / mass - jnp.sqrt(
+            kbT * (1 - alpha ** 2) / mass) * jax.random.normal(_key, _x.shape))
+
+        return prev_x, prev_v
+
+
     key = jax.random.PRNGKey(1)
     key, velocity_key = jax.random.split(key)
-    steps = 100_000
+    steps = 10_000
 
     trajectory = [A]
     _x = trajectory[-1]
+    _v = jnp.sqrt(kbT / mass) * jax.random.normal(velocity_key, (1, 66))
 
     for i in trange(steps):
         key, iter_key = jax.random.split(key)
-        _x = step(_x, iter_key)
+        _x, _v = step_langevin_forward(_x, _v, iter_key)
 
         trajectory.append(_x)
 
@@ -206,20 +240,37 @@ if __name__ == '__main__':
 
     plt.title(f"{human_format(steps)} steps @ {temp} K, dt = {human_format(dt)}s")
     ramachandran(trajectory_phi_psi)
+    plt.scatter(phis_psis(A, mdtraj_topology)[0], phis_psis(A, mdtraj_topology)[1], color='red', marker='*')
+    plt.scatter(phis_psis(B, mdtraj_topology)[0], phis_psis(B, mdtraj_topology)[1], color='green', marker='*')
     plt.show()
 
     # Choose a system, either phi psi, or rmsd
-    # system = tps.System(
+    # system = tps1.System(
     #     jax.jit(jax.vmap(lambda s: kabsch_rmsd(A.reshape(22, 3), s.reshape(22, 3)) < 0.1)),
     #     jax.jit(jax.vmap(lambda s: kabsch_rmsd(B.reshape(22, 3), s.reshape(22, 3)) < 0.1)),
     #     step
     # )
 
-    system = tps.System(
-        lambda s: is_within(phis_psis(s, mdtraj_topology).reshape(-1, 2), phis_psis(A, mdtraj_topology), 20 / deg),
-        lambda s: is_within(phis_psis(s, mdtraj_topology).reshape(-1, 2), phis_psis(B, mdtraj_topology), 20 / deg),
+    radius = 20 / deg
+
+    system = tps1.FirstOrderSystem(
+        lambda s: is_within(phis_psis(s, mdtraj_topology).reshape(-1, 2), phis_psis(A, mdtraj_topology), radius),
+        lambda s: is_within(phis_psis(s, mdtraj_topology).reshape(-1, 2), phis_psis(B, mdtraj_topology), radius),
         step
     )
+
+    system = tps2.SecondOrderSystem(
+        # lambda s: is_within(phis_psis(s, mdtraj_topology).reshape(-1, 2), phis_psis(A, mdtraj_topology), radius),
+        # lambda s: is_within(phis_psis(s, mdtraj_topology).reshape(-1, 2), phis_psis(B, mdtraj_topology), radius),
+        jax.jit(jax.vmap(lambda s: kabsch_rmsd(A.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
+        jax.jit(jax.vmap(lambda s: kabsch_rmsd(B.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
+        step_langevin_forward,
+        step_langevin_backward,
+        jax.jit(lambda key: jnp.sqrt(kbT / mass) * jax.random.normal(key, (1, 66)))
+    )
+
+    print("A", phis_psis(A, mdtraj_topology))
+    print("B", phis_psis(B, mdtraj_topology))
 
     filter1 = system.start_state(trajectory)
     filter2 = system.target_state(trajectory)
@@ -232,21 +283,36 @@ if __name__ == '__main__':
     ramachandran(trajectory_phi_psi[filter2])
     plt.show()
 
-    initial_trajectory = [t.reshape(1, -1) for t in interpolate([A, B], 100)]
+    initial_trajectory = md.load('./files/AD_A_B_500K_initial_trajectory.pdb').xyz.reshape(-1, 1, 66)
+    initial_trajectory = [p for p in initial_trajectory]
     save_trajectory(mdtraj_topology, jnp.array(initial_trajectory), f'{savedir}/initial_trajectory.pdb')
 
-    paths = tps.mcmc_shooting(system, tps.two_way_shooting, initial_trajectory, 5, key, warmup=2)
-    paths = [jnp.array(p) for p in paths]
-    # store paths
-    np.save(f'{savedir}/paths.npy', np.array(paths, dtype=object), allow_pickle=True)
+    load = False
+    if load:
+        paths = np.load(f'{savedir}/paths.npy', allow_pickle=True)
+    else:
+        paths = tps2.mcmc_shooting(system, tps2.two_way_shooting, initial_trajectory, 5, jax.random.PRNGKey(1), warmup=0)
+        # paths = tps2.unguided_md(system, B, 1, key)
+        paths = [jnp.array(p) for p in paths]
+        # store paths
+        np.save(f'{savedir}/paths.npy', np.array(paths, dtype=object), allow_pickle=True)
 
     print([len(p) for p in paths])
     plt.hist([len(p) for p in paths], bins=jnp.sqrt(len(paths)).astype(int).item())
     plt.show()
 
-    plt.title(f"{human_format(len(paths))} steps @ {temp} K, dt = {human_format(dt)}s")
-    ramachandran(jnp.concatenate([phis_psis(p, mdtraj_topology) for p in paths]),
-                 path=phis_psis(jnp.array(initial_trajectory), mdtraj_topology))
+    path_hist = PeriodicPathHistogram()
+    for i, path in tqdm(enumerate(paths)):
+        path_hist.add_path(np.array(phis_psis(path, mdtraj_topology)))
+
+    plt.title(f"{human_format(len(paths))} paths @ {temp} K, dt = {human_format(dt)}s")
+    path_hist.plot(cmin=0.001)
+    ramachandran(None, states=[
+        {'name': 'A', 'center': phis_psis(A, mdtraj_topology), 'radius': radius},
+        {'name': 'B', 'center': phis_psis(B, mdtraj_topology), 'radius': radius},
+    ], alpha=0.7)
+    plt.savefig(f'{savedir}/paths.png', bbox_inches='tight')
     plt.show()
 
-    save_trajectory(mdtraj_topology, paths[-1], f'{savedir}/final_trajectory.pdb')
+    for i, path in tqdm(enumerate(paths)):
+        save_trajectory(mdtraj_topology, jnp.array([kabsch_align(p.reshape(-1, 3), B.reshape(-1, 3))[0] for p in path]), f'{savedir}/trajectory_{i}.pdb')

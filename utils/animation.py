@@ -1,5 +1,4 @@
 import mdtraj as md
-from tqdm import tqdm
 
 
 def to_md_traj(mdtraj_topology, trajectory):

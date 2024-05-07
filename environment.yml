@@ -17,3 +17,4 @@ dependencies:
     - matplotlib==3.8.2
     - rdkit==2023.3.3
     - ParmEd==4.2.2
+    - scikit-image==0.23.2
