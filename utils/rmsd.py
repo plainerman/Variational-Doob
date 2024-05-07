@@ -43,7 +43,6 @@ def kabsch_align(P, Q):
 
 
 @jax.jit
-@jax.vmap
 def kabsch_rmsd(P, Q):
     P_aligned, Q_aligned = kabsch_align(P, Q)
     return jnp.sqrt(jnp.sum(jnp.square(P_aligned - Q_aligned)) / P.shape[0])
