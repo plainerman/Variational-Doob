@@ -30,10 +30,11 @@ def kabsch_align(P, Q):
     H = jnp.dot(p.T, q)
 
     # SVD
-    U, S, Vt = jnp.linalg.svd(H)
+    U, _, Vt = jnp.linalg.svd(H)
 
     # Validate right-handed coordinate system
-    Vt = jnp.where(jnp.linalg.det(jnp.dot(Vt.T, U.T)) < 0.0, -Vt, Vt)
+    det = jnp.linalg.det(jnp.dot(Vt.T, U.T))
+    Vt = jnp.where(det < 0.0, Vt.at[-1, :].set(Vt[-1, :] * -1.0), Vt)
 
     # Optimal rotation
     R = jnp.dot(Vt.T, U.T)
@@ -42,6 +43,7 @@ def kabsch_align(P, Q):
 
 
 @jax.jit
+@jax.vmap
 def kabsch_rmsd(P, Q):
     P_aligned, Q_aligned = kabsch_align(P, Q)
     return jnp.sqrt(jnp.sum(jnp.square(P_aligned - Q_aligned)) / P.shape[0])
