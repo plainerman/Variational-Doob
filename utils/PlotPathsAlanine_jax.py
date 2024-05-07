@@ -104,8 +104,8 @@ def PlotPathsAlanine(paths, target, filename):
     plt.xlim([-np.pi, np.pi])
     plt.ylim([-np.pi, np.pi])
 
-    angle_2 = [1, 6, 8, 14]
-    angle_1 = [6, 8, 14, 16]
+    angle_2 = [1, 6, 8, 14] # phi
+    angle_1 = [6, 8, 14, 16] # psi
 
     potential = AlaninePotential()
     xs = np.arange(-np.pi, np.pi + .1, .1)

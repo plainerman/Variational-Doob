@@ -19,6 +19,7 @@ from tps.plot import PeriodicPathHistogram
 # helper function for plotting in 2D
 from matplotlib import colors
 
+from utils.angles import phi_psi_from_mdtraj
 from utils.animation import save_trajectory, to_md_traj
 from utils.rmsd import kabsch_align, kabsch_rmsd
 
@@ -58,13 +59,6 @@ def interpolate(points, steps):
     return interpolation
 
 
-def phis_psis(position, mdtraj_topology):
-    traj = to_md_traj(mdtraj_topology, position)
-    phi = md.compute_phi(traj)[1].squeeze()
-    psi = md.compute_psi(traj)[1].squeeze()
-    return jnp.array([phi, psi]).T
-
-
 def ramachandran(samples, bins=100, path=None, paths=None, states=None, alpha=1.0):
     if samples is not None:
         plt.hist2d(samples[:, 0], samples[:, 1], bins=bins, norm=colors.LogNorm(), rasterized=True)
@@ -97,7 +91,8 @@ def ramachandran(samples, bins=100, path=None, paths=None, states=None, alpha=1.
             draw_path(path, color='blue')
 
     for state in (states if states is not None else []):
-        c = plt.Circle(state['center'], radius=state['radius'], edgecolor='gray', facecolor='white', ls='--', lw=0.7, alpha=alpha)
+        c = plt.Circle(state['center'], radius=state['radius'], edgecolor='gray', facecolor='white', ls='--', lw=0.7,
+                       alpha=alpha)
         plt.gca().add_patch(c)
         plt.gca().annotate(state['name'], xy=state['center'], ha="center", va="center")
 
@@ -131,6 +126,7 @@ if __name__ == '__main__':
     init_pdb = app.PDBFile("./files/AD_A.pdb")
     target_pdb = app.PDBFile("./files/AD_B.pdb")
     mdtraj_topology = md.Topology.from_openmm(init_pdb.topology)
+    phis_psis = phi_psi_from_mdtraj(mdtraj_topology)
 
     savedir = f"baselines/alanine"
     os.makedirs(savedir, exist_ok=True)
@@ -150,7 +146,6 @@ if __name__ == '__main__':
     B = jnp.array(target_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer))
     A, B = kabsch_align(A, B)
     A, B = A.reshape(1, -1), B.reshape(1, -1)
-
 
     # Initialize the potential energy with amber forcefields
     ff = Hamiltonian('amber14/protein.ff14SB.xml', 'amber14/tip3p.xml')
@@ -236,12 +231,12 @@ if __name__ == '__main__':
 
     # we only need to check whether the last frame contains nan, is it propagates
     assert not jnp.isnan(trajectory[-1]).any()
-    trajectory_phi_psi = phis_psis(trajectory, mdtraj_topology)
+    trajectory_phi_psi = phis_psis(trajectory)
 
     plt.title(f"{human_format(steps)} steps @ {temp} K, dt = {human_format(dt)}s")
     ramachandran(trajectory_phi_psi)
-    plt.scatter(phis_psis(A, mdtraj_topology)[0], phis_psis(A, mdtraj_topology)[1], color='red', marker='*')
-    plt.scatter(phis_psis(B, mdtraj_topology)[0], phis_psis(B, mdtraj_topology)[1], color='green', marker='*')
+    plt.scatter(phis_psis(A)[0], phis_psis(A)[1], color='red', marker='*')
+    plt.scatter(phis_psis(B)[0], phis_psis(B)[1], color='green', marker='*')
     plt.show()
 
     # Choose a system, either phi psi, or rmsd
@@ -254,23 +249,23 @@ if __name__ == '__main__':
     radius = 20 / deg
 
     system = tps1.FirstOrderSystem(
-        lambda s: is_within(phis_psis(s, mdtraj_topology).reshape(-1, 2), phis_psis(A, mdtraj_topology), radius),
-        lambda s: is_within(phis_psis(s, mdtraj_topology).reshape(-1, 2), phis_psis(B, mdtraj_topology), radius),
+        lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(A), radius),
+        lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(B), radius),
         step
     )
 
     system = tps2.SecondOrderSystem(
-        # lambda s: is_within(phis_psis(s, mdtraj_topology).reshape(-1, 2), phis_psis(A, mdtraj_topology), radius),
-        # lambda s: is_within(phis_psis(s, mdtraj_topology).reshape(-1, 2), phis_psis(B, mdtraj_topology), radius),
-        jax.jit(jax.vmap(lambda s: kabsch_rmsd(A.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
-        jax.jit(jax.vmap(lambda s: kabsch_rmsd(B.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
+        jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(A), radius)),
+        jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(B), radius)),
+        # jax.jit(jax.vmap(lambda s: kabsch_rmsd(A.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
+        # jax.jit(jax.vmap(lambda s: kabsch_rmsd(B.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
         step_langevin_forward,
         step_langevin_backward,
         jax.jit(lambda key: jnp.sqrt(kbT / mass) * jax.random.normal(key, (1, 66)))
     )
 
-    print("A", phis_psis(A, mdtraj_topology))
-    print("B", phis_psis(B, mdtraj_topology))
+    print("A", phis_psis(A))
+    print("B", phis_psis(B))
 
     filter1 = system.start_state(trajectory)
     filter2 = system.target_state(trajectory)
@@ -291,7 +286,8 @@ if __name__ == '__main__':
     if load:
         paths = np.load(f'{savedir}/paths.npy', allow_pickle=True)
     else:
-        paths = tps2.mcmc_shooting(system, tps2.two_way_shooting, initial_trajectory, 5, jax.random.PRNGKey(1), warmup=0)
+        paths = tps2.mcmc_shooting(system, tps2.two_way_shooting, initial_trajectory, 100, jax.random.PRNGKey(1),
+                                   warmup=10)
         # paths = tps2.unguided_md(system, B, 1, key)
         paths = [jnp.array(p) for p in paths]
         # store paths
@@ -303,16 +299,17 @@ if __name__ == '__main__':
 
     path_hist = PeriodicPathHistogram()
     for i, path in tqdm(enumerate(paths)):
-        path_hist.add_path(np.array(phis_psis(path, mdtraj_topology)))
+        path_hist.add_path(np.array(phis_psis(path)))
 
     plt.title(f"{human_format(len(paths))} paths @ {temp} K, dt = {human_format(dt)}s")
     path_hist.plot(cmin=0.001)
     ramachandran(None, states=[
-        {'name': 'A', 'center': phis_psis(A, mdtraj_topology), 'radius': radius},
-        {'name': 'B', 'center': phis_psis(B, mdtraj_topology), 'radius': radius},
+        {'name': 'A', 'center': phis_psis(A).squeeze(), 'radius': radius},
+        {'name': 'B', 'center': phis_psis(B).squeeze(), 'radius': radius},
     ], alpha=0.7)
     plt.savefig(f'{savedir}/paths.png', bbox_inches='tight')
     plt.show()
 
     for i, path in tqdm(enumerate(paths)):
-        save_trajectory(mdtraj_topology, jnp.array([kabsch_align(p.reshape(-1, 3), B.reshape(-1, 3))[0] for p in path]), f'{savedir}/trajectory_{i}.pdb')
+        save_trajectory(mdtraj_topology, jnp.array([kabsch_align(p.reshape(-1, 3), B.reshape(-1, 3))[0] for p in path]),
+                        f'{savedir}/trajectory_{i}.pdb')
