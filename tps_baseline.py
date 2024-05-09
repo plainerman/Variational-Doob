@@ -279,10 +279,10 @@ if __name__ == '__main__':
     )
 
     system = tps2.SecondOrderSystem(
-        # jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(A), radius)),
-        # jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(B), radius)),
-        jax.jit(jax.vmap(lambda s: kabsch_rmsd(A.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
-        jax.jit(jax.vmap(lambda s: kabsch_rmsd(B.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
+        jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(A), radius)),
+        jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(B), radius)),
+        # jax.jit(jax.vmap(lambda s: kabsch_rmsd(A.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
+        # jax.jit(jax.vmap(lambda s: kabsch_rmsd(B.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
         step_langevin_forward,
         step_langevin_backward,
         jax.jit(lambda key: jnp.sqrt(kbT / mass) * jax.random.normal(key, (1, 66)))
@@ -306,7 +306,7 @@ if __name__ == '__main__':
     initial_trajectory = [p for p in initial_trajectory]
     save_trajectory(mdtraj_topology, jnp.array(initial_trajectory), f'{savedir}/initial_trajectory.pdb')
 
-    load = True
+    load = False
     if load:
         paths = np.load(f'{savedir}/paths.npy', allow_pickle=True)
         velocities = np.load(f'{savedir}/velocities.npy', allow_pickle=True)
