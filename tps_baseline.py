@@ -1,9 +1,12 @@
 import os
+from functools import partial
+
 import jax
 import numpy as np
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
 from tqdm import trange, tqdm
+import json
 
 # install openmm (from conda)
 import openmm.app as app
@@ -13,6 +16,7 @@ from dmff import Hamiltonian, NeighborList
 # install mdtraj
 import mdtraj as md
 
+from eval.path_metrics import plot_path_energy
 from tps import first_order as tps1
 from tps import second_order as tps2
 from tps.plot import PeriodicPathHistogram
@@ -198,6 +202,26 @@ if __name__ == '__main__':
 
         return _x + dt_in_ps * new_v, new_v
 
+    @jax.jit
+    def step_langevin_log_density(_x, _v, _new_x, _new_v):
+        alpha = jnp.exp(-gamma_in_ps * dt_in_ps)
+        f_scale = (1 - alpha) / gamma_in_ps
+        new_v_det = alpha * _v + f_scale * -dUdx_fn_unscaled(_x) / mass
+        new_v_rand = new_v_det - _new_v
+
+        return jax.scipy.stats.norm.logpdf(new_v_rand, 0, jnp.sqrt(kbT * (1 - alpha ** 2) / mass)).sum()
+
+
+    def langevin_log_path_density(path_and_velocities):
+        path, velocities = path_and_velocities
+
+        log_prob = (-U(path[0]) / kbT).sum()
+        log_prob += jax.scipy.stats.norm.logpdf(velocities[0], 0, jnp.sqrt(kbT / mass)).sum()
+
+        for i in range(1, len(path)):
+            log_prob += step_langevin_log_density(path[i - 1], velocities[i - 1], path[i], velocities[i])
+
+        return log_prob
 
     @jax.jit
     def step_langevin_backward(_x, _v, _key):
@@ -235,8 +259,8 @@ if __name__ == '__main__':
 
     plt.title(f"{human_format(steps)} steps @ {temp} K, dt = {human_format(dt)}s")
     ramachandran(trajectory_phi_psi)
-    plt.scatter(phis_psis(A)[0], phis_psis(A)[1], color='red', marker='*')
-    plt.scatter(phis_psis(B)[0], phis_psis(B)[1], color='green', marker='*')
+    plt.scatter(phis_psis(A)[0, 0], phis_psis(A)[0, 1], color='red', marker='*')
+    plt.scatter(phis_psis(B)[0, 0], phis_psis(B)[0, 1], color='green', marker='*')
     plt.show()
 
     # Choose a system, either phi psi, or rmsd
@@ -255,10 +279,10 @@ if __name__ == '__main__':
     )
 
     system = tps2.SecondOrderSystem(
-        jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(A), radius)),
-        jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(B), radius)),
-        # jax.jit(jax.vmap(lambda s: kabsch_rmsd(A.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
-        # jax.jit(jax.vmap(lambda s: kabsch_rmsd(B.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
+        # jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(A), radius)),
+        # jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(B), radius)),
+        jax.jit(jax.vmap(lambda s: kabsch_rmsd(A.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
+        jax.jit(jax.vmap(lambda s: kabsch_rmsd(B.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
         step_langevin_forward,
         step_langevin_backward,
         jax.jit(lambda key: jnp.sqrt(kbT / mass) * jax.random.normal(key, (1, 66)))
@@ -282,32 +306,56 @@ if __name__ == '__main__':
     initial_trajectory = [p for p in initial_trajectory]
     save_trajectory(mdtraj_topology, jnp.array(initial_trajectory), f'{savedir}/initial_trajectory.pdb')
 
-    load = False
+    load = True
     if load:
         paths = np.load(f'{savedir}/paths.npy', allow_pickle=True)
+        velocities = np.load(f'{savedir}/velocities.npy', allow_pickle=True)
+        with open(f'{savedir}/stats.json', 'r') as fp:
+            statistics = json.load(fp)
     else:
-        paths = tps2.mcmc_shooting(system, tps2.two_way_shooting, initial_trajectory, 100, jax.random.PRNGKey(1),
-                                   warmup=10)
+        paths, velocities, statistics = tps2.mcmc_shooting(system, tps2.two_way_shooting, initial_trajectory,
+                                               100, jax.random.PRNGKey(1), warmup=10)
         # paths = tps2.unguided_md(system, B, 1, key)
         paths = [jnp.array(p) for p in paths]
+        velocities = [jnp.array(p) for p in velocities]
         # store paths
         np.save(f'{savedir}/paths.npy', np.array(paths, dtype=object), allow_pickle=True)
+        np.save(f'{savedir}/velocities.npy', np.array(velocities, dtype=object), allow_pickle=True)
+        # save statistics, which is a dictionary
+        with open(f'{savedir}/stats.json', 'w') as fp:
+            json.dump(statistics, fp)
 
+    print(statistics)
     print([len(p) for p in paths])
     plt.hist([len(p) for p in paths], bins=jnp.sqrt(len(paths)).astype(int).item())
     plt.show()
 
     path_hist = PeriodicPathHistogram()
-    for i, path in tqdm(enumerate(paths)):
+    for i, path in tqdm(enumerate(paths), desc='Adding paths to histogram', total=len(paths)):
         path_hist.add_path(np.array(phis_psis(path)))
 
     plt.title(f"{human_format(len(paths))} paths @ {temp} K, dt = {human_format(dt)}s")
-    path_hist.plot(cmin=0.001)
+    path_hist.plot(cmin=0.01)
     ramachandran(None, states=[
         {'name': 'A', 'center': phis_psis(A).squeeze(), 'radius': radius},
         {'name': 'B', 'center': phis_psis(B).squeeze(), 'radius': radius},
     ], alpha=0.7)
     plt.savefig(f'{savedir}/paths.png', bbox_inches='tight')
+    plt.show()
+
+    plot_path_energy(paths, jax.vmap(U))
+    plt.ylabel('Maximum energy')
+    plt.savefig(f'{savedir}/max_energy.png', bbox_inches='tight')
+    plt.show()
+
+    plot_path_energy(paths, jax.vmap(U), reduce=jnp.median)
+    plt.ylabel('Median energy')
+    plt.savefig(f'{savedir}/median_energy.png', bbox_inches='tight')
+    plt.show()
+
+    plot_path_energy(list(zip(paths, velocities)), langevin_log_path_density, reduce=lambda x: x, already_ln=True)
+    plt.ylabel('Path Density')
+    plt.savefig(f'{savedir}/path_density.png', bbox_inches='tight')
     plt.show()
 
     for i, path in tqdm(enumerate(paths)):
