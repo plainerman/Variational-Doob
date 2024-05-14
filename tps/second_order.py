@@ -137,31 +137,37 @@ def mcmc_shooting(system, proposal, initial_trajectory, num_paths, key, fixed_le
     if fixed_length > 0:
         statistics['fixed_length'] = fixed_length
 
-    with tqdm(total=num_paths + warmup, desc='warming up' if warmup > 0 else '') as pbar:
-        while len(trajectories) <= num_paths + warmup:
-            statistics['num_tries'] += 1
-            if len(trajectories) > warmup:
-                pbar.set_description('')
+    try:
+        with tqdm(total=num_paths + warmup, desc='warming up' if warmup > 0 else '') as pbar:
+            while len(trajectories) <= num_paths + warmup:
+                statistics['num_tries'] += 1
+                if len(trajectories) > warmup:
+                    pbar.set_description('')
 
-            key, traj_idx_key, iter_key, accept_key = jax.random.split(key, 4)
-            traj_idx = jax.random.randint(traj_idx_key, (1,), warmup + 1, len(trajectories))[0]
-            # during warmup, we want an iterative scheme
-            traj_idx = traj_idx if traj_idx < len(trajectories) else -1
+                key, traj_idx_key, iter_key, accept_key = jax.random.split(key, 4)
+                traj_idx = jax.random.randint(traj_idx_key, (1,), warmup + 1, len(trajectories))[0]
+                # during warmup, we want an iterative scheme
+                traj_idx = traj_idx if traj_idx < len(trajectories) else -1
 
-            found, new_trajectory, new_velocities = proposal(system, trajectories[traj_idx], fixed_length, iter_key)
-            statistics['num_force_evaluations'] += len(new_trajectory) - 1
+                found, new_trajectory, new_velocities = proposal(system, trajectories[traj_idx], fixed_length, iter_key)
+                statistics['num_force_evaluations'] += len(new_trajectory) - 1
 
-            if not found:
-                continue
+                if not found:
+                    continue
 
-            ratio = len(trajectories[-1]) / len(new_trajectory)
-            # The first trajectory might have a very unreasonable length, so we skip it
-            if len(trajectories) == 1 or jax.random.uniform(accept_key, shape=(1,)) < ratio:
-                trajectories.append(new_trajectory)
-                velocities.append(new_velocities)
-                pbar.update(1)
-            else:
-                statistics['num_metropolis_rejected'] += 1
+                ratio = len(trajectories[-1]) / len(new_trajectory)
+                # The first trajectory might have a very unreasonable length, so we skip it
+                if len(trajectories) == 1 or jax.random.uniform(accept_key, shape=(1,)) < ratio:
+                    trajectories.append(new_trajectory)
+                    velocities.append(new_velocities)
+                    pbar.update(1)
+                else:
+                    statistics['num_metropolis_rejected'] += 1
+    except KeyboardInterrupt:
+        print('SIGINT received, stopping early')
+        # Fix in case we stop when adding a trajectory
+        if len(trajectories) > len(velocities):
+            velocities.append(new_velocities)
 
     return trajectories[warmup + 1:], velocities[warmup:], statistics
 
