@@ -7,6 +7,14 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import os
 
+num_paths = 1000
+xi = 5
+kbT = xi ** 2 / 2
+dt = 1e-4
+T = 275e-4
+N = int(T / dt)
+
+
 def load(path):
     return jnp.array(np.load(path, allow_pickle=True).astype(np.float32)).squeeze()
 
@@ -14,7 +22,7 @@ def load(path):
 @jax.jit
 def log_prob_path(path):
     rand = path[1:] - path[:-1] + dt * dUdx_fn(path[:-1])
-    return U(path[0]) + jax.scipy.stats.norm.logpdf(rand, scale=jnp.sqrt(dt) * xi).sum()
+    return U(path[0]) / kbT + jax.scipy.stats.norm.logpdf(rand, scale=jnp.sqrt(dt) * xi).sum()
 
 
 if __name__ == '__main__':
@@ -26,12 +34,6 @@ if __name__ == '__main__':
         ('two-way-shooting', './out/baselines/mueller/paths-two-way-shooting.npy'),
         ('var-doobs', './out/var_doobs/mueller/paths.npy'),
     ]
-
-    num_paths = 1000
-    xi = 5
-    dt = 1e-4
-    T = 275e-4
-    N = int(T / dt)
 
     global_minimum_energy = U(minima_points[0])
     for point in minima_points:
@@ -59,7 +61,7 @@ if __name__ == '__main__':
 
     for name, paths in all_paths:
         plot_path_energy(paths, log_prob_path, reduce=lambda x: x, label=name)
-        print('Median energy of:', name, jnp.median(jnp.array([log_prob_path(path) for path in paths])))
+        print('Median log-likelihood of:', name, jnp.median(jnp.array([log_prob_path(path) for path in paths])))
 
     plt.legend()
     plt.ylabel('log path likelihood')
