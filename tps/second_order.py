@@ -16,6 +16,7 @@ class SecondOrderSystem:
 
 
 def one_way_shooting(system, trajectory, fixed_length, key):
+    raise NotImplementedError('Not implemented for multi step systems')
     key = jax.random.split(key)
 
     # pick a random point along the trajectory
@@ -79,36 +80,53 @@ def two_way_shooting(system, trajectory, fixed_length, key):
     while len(new_trajectory) < steps:
         key, iter_key = jax.random.split(key)
         point, velocity = system.step_forward(new_trajectory[-1], new_velocities[-1], iter_key)
-        new_trajectory.append(point)
-        new_velocities.append(velocity)
 
-        if jnp.isnan(point).any() or jnp.isnan(velocity).any():
+        nan_filter = jnp.isnan(point).any(axis=-1).flatten() | jnp.isnan(velocity).any(axis=-1).flatten()
+        too_big_filter = (jnp.abs(point) > MAX_ABS_VALUE).any(axis=-1).flatten()
+
+        start_state_filter = system.start_state(point)
+        target_state_filter = system.target_state(point)
+
+        all_filters_combined = start_state_filter | target_state_filter | nan_filter | too_big_filter
+
+        limit = jnp.argmax(all_filters_combined) + 1 if all_filters_combined.any() else len(all_filters_combined)
+        new_trajectory.extend(point[:limit])
+        new_velocities.extend(velocity[:limit])
+
+        if (nan_filter | too_big_filter)[:limit].any():
             return False, new_trajectory, new_velocities
 
-        # ensure that our trajectory does not explode
-        if (jnp.abs(point) > MAX_ABS_VALUE).any():
-            return False, new_trajectory, new_velocities
-
-        if system.start_state(point) or system.target_state(point):
+        if (start_state_filter | target_state_filter)[:limit].any():
             break
 
     while len(new_trajectory) < steps:
         key, iter_key = jax.random.split(key)
         point, velocity = system.step_backward(new_trajectory[0], new_velocities[0], iter_key)
-        new_trajectory.insert(0, point)
-        new_velocities.insert(0, velocity)
 
-        if jnp.isnan(point).any() or jnp.isnan(velocity).any():
+        nan_filter = jnp.isnan(point).any(axis=-1).flatten() | jnp.isnan(velocity).any(axis=-1).flatten()
+        too_big_filter = (jnp.abs(point) > MAX_ABS_VALUE).any(axis=-1).flatten()
+
+        start_state_filter = system.start_state(point)
+        target_state_filter = system.target_state(point)
+
+        all_filters_combined = start_state_filter | target_state_filter | nan_filter | too_big_filter
+
+        limit = jnp.argmax(all_filters_combined) + 1 if all_filters_combined.any() else len(all_filters_combined)
+        point = point[:limit]
+        velocity = velocity[:limit]
+        new_trajectory[:0] = point[::-1]
+        new_velocities[:0] = velocity[::-1]
+
+        if (nan_filter | too_big_filter)[:limit].any():
             return False, new_trajectory, new_velocities
 
-        # ensure that our trajectory does not explode
-        if (jnp.abs(point) > MAX_ABS_VALUE).any():
-            return False, new_trajectory, new_velocities
-
-        if system.start_state(point) or system.target_state(point):
+        if (start_state_filter | target_state_filter)[:limit].any():
             break
 
     # throw away the trajectory if it's not the right length
+    if len(new_trajectory) > steps:
+        return False, new_trajectory[:steps], new_velocities[:steps]
+
     if fixed_length != 0 and len(new_trajectory) != fixed_length:
         return False, new_trajectory, new_velocities
 

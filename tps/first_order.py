@@ -101,10 +101,26 @@ def mcmc_shooting(system, proposal, initial_trajectory, num_paths, key, fixed_le
     # pick an initial trajectory
     trajectories = [initial_trajectory]
 
+    statistics = {
+        'num_force_evaluations': 0,
+        'num_tries': 0,
+        'num_metropolis_rejected': 0,
+        'warmup': warmup,
+        'num_paths': num_paths,
+    }
+    if fixed_length > 0:
+        statistics['fixed_length'] = fixed_length
+    else:
+        statistics['max_steps'] = MAX_STEPS
+
     with tqdm(total=num_paths) as pbar:
         while len(trajectories) <= num_paths + warmup:
+            statistics['num_tries'] += 1
+
             key, iter_key, accept_key = jax.random.split(key, 3)
             found, new_trajectory = proposal(system, trajectories[-1], fixed_length, iter_key)
+            statistics['num_force_evaluations'] += len(new_trajectory) - 1
+
             if not found:
                 continue
 
@@ -115,8 +131,10 @@ def mcmc_shooting(system, proposal, initial_trajectory, num_paths, key, fixed_le
 
                 if len(trajectories) > warmup:
                     pbar.update(1)
+            else:
+                statistics['num_metropolis_rejected'] += 1
 
-    return trajectories[warmup + 1:]
+    return trajectories[warmup + 1:], statistics
 
 
 def unguided_md(system, initial_point, num_paths, key, fixed_length=0):
@@ -124,10 +142,19 @@ def unguided_md(system, initial_point, num_paths, key, fixed_length=0):
     current_frame = initial_point.clone()
     current_trajectory = []
 
+    statistics = {
+        'num_force_evaluations': 0,
+        'num_paths': num_paths,
+        'max_steps': MAX_STEPS,
+    }
+    if fixed_length > 0:
+        statistics['fixed_length'] = fixed_length
+
     with tqdm(total=num_paths) as pbar:
         while len(trajectories) < num_paths:
             key, iter_key = jax.random.split(key)
             next_frame = system.step(current_frame, iter_key)
+            statistics['num_force_evaluations'] += 1
 
             is_transition = not (system.start_state(next_frame) or system.target_state(next_frame))
             if is_transition:
@@ -153,4 +180,4 @@ def unguided_md(system, initial_point, num_paths, key, fixed_length=0):
 
             current_frame = next_frame
 
-    return trajectories
+    return trajectories, statistics

@@ -45,24 +45,6 @@ def human_format(num):
         return '{}{}'.format('{:f}'.format(num).rstrip('0').rstrip('.'), ['', 'm', 'µ', 'n', 'p', 'f'][magnitude])
 
 
-def interpolate(points, steps):
-    def interpolate_two_points(start, stop, steps):
-        t = jnp.linspace(0, 1, steps + 1).reshape(steps + 1, 1)
-        interpolated_tensors = jnp.array(start) * (1 - t) + jnp.array(stop) * t
-        return interpolated_tensors
-
-    step_size = steps // (len(points) - 1)
-    remaining = steps % (len(points) - 1)
-
-    interpolation = []
-    for i in range(len(points) - 1):
-        cur_step_size = step_size + (1 if i < remaining else 0)
-        current = interpolate_two_points(points[i], points[i + 1], cur_step_size)
-        interpolation.extend(current if i == 0 else current[1:])
-
-    return interpolation
-
-
 def ramachandran(samples, bins=100, path=None, paths=None, states=None, alpha=1.0):
     if samples is not None:
         plt.hist2d(samples[:, 0], samples[:, 1], bins=bins, norm=colors.LogNorm(), rasterized=True)
@@ -126,13 +108,25 @@ def is_within(_phis_psis, _center, _radius, _period=2 * jnp.pi):
 
 deg = 180.0 / jnp.pi
 
+
+def step_n(step, _x, _v, n, _key):
+    all_x, all_v = jnp.zeros((n, *_x.shape)), jnp.zeros((n, *_v.shape))
+    for i in range(n):
+        _key, _iter_key = jax.random.split(_key)
+        _x, _v = step(_x, _v, _iter_key)
+        all_x = all_x.at[i].set(_x)
+        all_v = all_v.at[i].set(_v)
+
+    return all_x, all_v
+
+
 if __name__ == '__main__':
     init_pdb = app.PDBFile("./files/AD_A.pdb")
     target_pdb = app.PDBFile("./files/AD_B.pdb")
     mdtraj_topology = md.Topology.from_openmm(init_pdb.topology)
     phis_psis = phi_psi_from_mdtraj(mdtraj_topology)
 
-    savedir = f"baselines/alanine"
+    savedir = f"out/baselines/alanine"
     os.makedirs(savedir, exist_ok=True)
 
     # Construct the mass matrix
@@ -202,6 +196,7 @@ if __name__ == '__main__':
 
         return _x + dt_in_ps * new_v, new_v
 
+
     @jax.jit
     def step_langevin_log_density(_x, _v, _new_x, _new_v):
         alpha = jnp.exp(-gamma_in_ps * dt_in_ps)
@@ -222,6 +217,7 @@ if __name__ == '__main__':
             log_prob += step_langevin_log_density(path[i - 1], velocities[i - 1], path[i], velocities[i])
 
         return log_prob
+
 
     @jax.jit
     def step_langevin_backward(_x, _v, _key):
@@ -283,8 +279,10 @@ if __name__ == '__main__':
         jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(B), radius)),
         # jax.jit(jax.vmap(lambda s: kabsch_rmsd(A.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
         # jax.jit(jax.vmap(lambda s: kabsch_rmsd(B.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
-        step_langevin_forward,
-        step_langevin_backward,
+        # step_langevin_forward,
+        # step_langevin_backward,
+        jax.jit(lambda _x, _v, _key: step_n(step_langevin_forward, _x, _v, 40, _key)),
+        jax.jit(lambda _x, _v, _key: step_n(step_langevin_backward, _x, _v, 40, _key)),
         jax.jit(lambda key: jnp.sqrt(kbT / mass) * jax.random.normal(key, (1, 66)))
     )
 
@@ -313,17 +311,20 @@ if __name__ == '__main__':
         with open(f'{savedir}/stats.json', 'r') as fp:
             statistics = json.load(fp)
     else:
-        paths, velocities, statistics = tps2.mcmc_shooting(system, tps2.two_way_shooting, initial_trajectory,
-                                               100, jax.random.PRNGKey(1), warmup=10)
-        # paths = tps2.unguided_md(system, B, 1, key)
-        paths = [jnp.array(p) for p in paths]
-        velocities = [jnp.array(p) for p in velocities]
-        # store paths
-        np.save(f'{savedir}/paths.npy', np.array(paths, dtype=object), allow_pickle=True)
-        np.save(f'{savedir}/velocities.npy', np.array(velocities, dtype=object), allow_pickle=True)
-        # save statistics, which is a dictionary
-        with open(f'{savedir}/stats.json', 'w') as fp:
-            json.dump(statistics, fp)
+        try:
+            paths, velocities, statistics = tps2.mcmc_shooting(system, tps2.two_way_shooting, initial_trajectory,
+                                                               100, jax.random.PRNGKey(1), warmup=0, fixed_length=1000)
+            # paths = tps2.unguided_md(system, B, 1, key)
+            paths = [jnp.array(p) for p in paths]
+            velocities = [jnp.array(p) for p in velocities]
+            # store paths
+            np.save(f'{savedir}/paths.npy', np.array(paths, dtype=object), allow_pickle=True)
+            np.save(f'{savedir}/velocities.npy', np.array(velocities, dtype=object), allow_pickle=True)
+            # save statistics, which is a dictionary
+            with open(f'{savedir}/stats.json', 'w') as fp:
+                json.dump(statistics, fp)
+        except Exception as e:
+            breakpoint()
 
     print(statistics)
     print([len(p) for p in paths])
