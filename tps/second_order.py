@@ -15,7 +15,7 @@ class SecondOrderSystem:
         self.sample_velocity = sample_velocity
 
 
-def one_way_shooting(system, trajectory, fixed_length, key):
+def one_way_shooting(system, trajectory, fixed_length, dt, key):
     key = jax.random.split(key)
 
     # pick a random point along the trajectory
@@ -23,8 +23,7 @@ def one_way_shooting(system, trajectory, fixed_length, key):
     # pick a random direction, either forward or backward
     direction = jax.random.randint(key[1], (1,), 0, 2)[0]
 
-    # TODO: Fix correct dt in ps / pass previous velocities
-    new_velocities = [(trajectory[point_idx] - trajectory[point_idx - 1]) / 0.001]
+    new_velocities = [(trajectory[point_idx] - trajectory[point_idx - 1]) / dt]
 
     if direction == 0:
         trajectory = trajectory[:point_idx + 1]
@@ -39,30 +38,42 @@ def one_way_shooting(system, trajectory, fixed_length, key):
     while len(trajectory) < steps:
         key, iter_key = jax.random.split(key)
         point, velocity = step_function(trajectory[-1], new_velocities[-1], iter_key)
-        trajectory.append(point)
-        new_velocities.append(velocity)
 
-        if jnp.isnan(point).any() or jnp.isnan(velocity).any():
+        nan_filter = jnp.isnan(point).any(axis=-1).flatten() | jnp.isnan(velocity).any(axis=-1).flatten()
+        too_big_filter = (jnp.abs(point) > MAX_ABS_VALUE).any(axis=-1).flatten()
+
+        start_state_filter = system.start_state(point)
+        target_state_filter = system.target_state(point)
+
+        all_filters_combined = start_state_filter | target_state_filter | nan_filter | too_big_filter
+
+        limit = jnp.argmax(all_filters_combined) + 1 if all_filters_combined.any() else len(all_filters_combined)
+        trajectory.extend(point[:limit])
+        new_velocities.extend(velocity[:limit])
+
+        if (nan_filter | too_big_filter)[:limit].any():
             return False, trajectory, new_velocities
 
-        # ensure that our trajectory does not explode
-        if (jnp.abs(point) > MAX_ABS_VALUE).any():
-            return False, trajectory, new_velocities
+        if (start_state_filter | target_state_filter)[:limit].any():
+            break
 
-        if system.start_state(trajectory[0]) and system.target_state(trajectory[-1]):
-            if fixed_length == 0 or len(trajectory) == fixed_length:
-                return True, trajectory, new_velocities
-            return False, trajectory, new_velocities
+    # throw away the trajectory if it's not the right length
+    if len(trajectory) > steps:
+        return False, trajectory[:steps], new_velocities[:steps]
 
-        if system.target_state(trajectory[0]) and system.start_state(trajectory[-1]):
-            if fixed_length == 0 or len(trajectory) == fixed_length:
-                return True, trajectory[::-1], new_velocities[::-1]
-            return False, trajectory, new_velocities
+    if fixed_length != 0 and len(trajectory) != fixed_length:
+        return False, trajectory, new_velocities
+
+    if system.start_state(trajectory[0]) and system.target_state(trajectory[-1]):
+        return True, trajectory, new_velocities
+
+    if system.target_state(trajectory[0]) and system.start_state(trajectory[-1]):
+        return True, trajectory[::-1], new_velocities[::-1]
 
     return False, trajectory, new_velocities
 
 
-def two_way_shooting(system, trajectory, fixed_length, key):
+def two_way_shooting(system, trajectory, fixed_length, _dt, key):
     key = jax.random.split(key)
 
     # pick a random point along the trajectory
@@ -79,36 +90,53 @@ def two_way_shooting(system, trajectory, fixed_length, key):
     while len(new_trajectory) < steps:
         key, iter_key = jax.random.split(key)
         point, velocity = system.step_forward(new_trajectory[-1], new_velocities[-1], iter_key)
-        new_trajectory.append(point)
-        new_velocities.append(velocity)
 
-        if jnp.isnan(point).any() or jnp.isnan(velocity).any():
+        nan_filter = jnp.isnan(point).any(axis=-1).flatten() | jnp.isnan(velocity).any(axis=-1).flatten()
+        too_big_filter = (jnp.abs(point) > MAX_ABS_VALUE).any(axis=-1).flatten()
+
+        start_state_filter = system.start_state(point)
+        target_state_filter = system.target_state(point)
+
+        all_filters_combined = start_state_filter | target_state_filter | nan_filter | too_big_filter
+
+        limit = jnp.argmax(all_filters_combined) + 1 if all_filters_combined.any() else len(all_filters_combined)
+        new_trajectory.extend(point[:limit])
+        new_velocities.extend(velocity[:limit])
+
+        if (nan_filter | too_big_filter)[:limit].any():
             return False, new_trajectory, new_velocities
 
-        # ensure that our trajectory does not explode
-        if (jnp.abs(point) > MAX_ABS_VALUE).any():
-            return False, new_trajectory, new_velocities
-
-        if system.start_state(point) or system.target_state(point):
+        if (start_state_filter | target_state_filter)[:limit].any():
             break
 
     while len(new_trajectory) < steps:
         key, iter_key = jax.random.split(key)
         point, velocity = system.step_backward(new_trajectory[0], new_velocities[0], iter_key)
-        new_trajectory.insert(0, point)
-        new_velocities.insert(0, velocity)
 
-        if jnp.isnan(point).any() or jnp.isnan(velocity).any():
+        nan_filter = jnp.isnan(point).any(axis=-1).flatten() | jnp.isnan(velocity).any(axis=-1).flatten()
+        too_big_filter = (jnp.abs(point) > MAX_ABS_VALUE).any(axis=-1).flatten()
+
+        start_state_filter = system.start_state(point)
+        target_state_filter = system.target_state(point)
+
+        all_filters_combined = start_state_filter | target_state_filter | nan_filter | too_big_filter
+
+        limit = jnp.argmax(all_filters_combined) + 1 if all_filters_combined.any() else len(all_filters_combined)
+        point = point[:limit]
+        velocity = velocity[:limit]
+        new_trajectory[:0] = point[::-1]
+        new_velocities[:0] = velocity[::-1]
+
+        if (nan_filter | too_big_filter)[:limit].any():
             return False, new_trajectory, new_velocities
 
-        # ensure that our trajectory does not explode
-        if (jnp.abs(point) > MAX_ABS_VALUE).any():
-            return False, new_trajectory, new_velocities
-
-        if system.start_state(point) or system.target_state(point):
+        if (start_state_filter | target_state_filter)[:limit].any():
             break
 
     # throw away the trajectory if it's not the right length
+    if len(new_trajectory) > steps:
+        return False, new_trajectory[:steps], new_velocities[:steps]
+
     if fixed_length != 0 and len(new_trajectory) != fixed_length:
         return False, new_trajectory, new_velocities
 
@@ -121,7 +149,7 @@ def two_way_shooting(system, trajectory, fixed_length, key):
     return False, new_trajectory, new_velocities
 
 
-def mcmc_shooting(system, proposal, initial_trajectory, num_paths, key, fixed_length=0, warmup=50):
+def mcmc_shooting(system, proposal, initial_trajectory, num_paths, dt, key, fixed_length=0, warmup=50, stored=None):
     # pick an initial trajectory
     trajectories = [initial_trajectory]
     velocities = []
@@ -137,31 +165,43 @@ def mcmc_shooting(system, proposal, initial_trajectory, num_paths, key, fixed_le
     if fixed_length > 0:
         statistics['fixed_length'] = fixed_length
 
-    with tqdm(total=num_paths + warmup, desc='warming up' if warmup > 0 else '') as pbar:
-        while len(trajectories) <= num_paths + warmup:
-            statistics['num_tries'] += 1
-            if len(trajectories) > warmup:
-                pbar.set_description('')
+    if stored is not None:
+        trajectories = stored['trajectories']
+        velocities = stored['velocities']
+        statistics = stored['statistics']
 
-            key, traj_idx_key, iter_key, accept_key = jax.random.split(key, 4)
-            traj_idx = jax.random.randint(traj_idx_key, (1,), warmup + 1, len(trajectories))[0]
-            # during warmup, we want an iterative scheme
-            traj_idx = traj_idx if traj_idx < len(trajectories) else -1
+    try:
+        with tqdm(total=num_paths + warmup, initial=len(trajectories) - 1,
+                  desc='warming up' if warmup > 0 else '') as pbar:
+            while len(trajectories) <= num_paths + warmup:
+                statistics['num_tries'] += 1
+                if len(trajectories) > warmup:
+                    pbar.set_description('')
 
-            found, new_trajectory, new_velocities = proposal(system, trajectories[traj_idx], fixed_length, iter_key)
-            statistics['num_force_evaluations'] += len(new_trajectory) - 1
+                key, traj_idx_key, ikey, accept_key = jax.random.split(key, 4)
+                traj_idx = jax.random.randint(traj_idx_key, (1,), warmup + 1, len(trajectories))[0]
+                # during warmup, we want an iterative scheme
+                traj_idx = traj_idx if traj_idx < len(trajectories) else -1
 
-            if not found:
-                continue
+                found, new_trajectory, new_velocities = proposal(system, trajectories[traj_idx], fixed_length, dt, ikey)
+                statistics['num_force_evaluations'] += len(new_trajectory) - 1
 
-            ratio = len(trajectories[-1]) / len(new_trajectory)
-            # The first trajectory might have a very unreasonable length, so we skip it
-            if len(trajectories) == 1 or jax.random.uniform(accept_key, shape=(1,)) < ratio:
-                trajectories.append(new_trajectory)
-                velocities.append(new_velocities)
-                pbar.update(1)
-            else:
-                statistics['num_metropolis_rejected'] += 1
+                if not found:
+                    continue
+
+                ratio = len(trajectories[-1]) / len(new_trajectory)
+                # The first trajectory might have a very unreasonable length, so we skip it
+                if len(trajectories) == 1 or jax.random.uniform(accept_key, shape=(1,)) < ratio:
+                    trajectories.append(new_trajectory)
+                    velocities.append(new_velocities)
+                    pbar.update(1)
+                else:
+                    statistics['num_metropolis_rejected'] += 1
+    except KeyboardInterrupt:
+        print('SIGINT received, stopping early')
+        # Fix in case we stop when adding a trajectory
+        if len(trajectories) > len(velocities) + 1:
+            velocities.append(new_velocities)
 
     return trajectories[warmup + 1:], velocities[warmup:], statistics
 

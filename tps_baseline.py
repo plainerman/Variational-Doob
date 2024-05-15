@@ -27,6 +27,16 @@ from utils.angles import phi_psi_from_mdtraj
 from utils.animation import save_trajectory, to_md_traj
 from utils.rmsd import kabsch_align, kabsch_rmsd
 
+from argparse import ArgumentParser
+
+parser = ArgumentParser()
+parser.add_argument('--mechanism', type=str, choices=['one-way-shooting', 'two-way-shooting'], required=True)
+parser.add_argument('--fixed_length', type=int, default=0)
+parser.add_argument('--num_steps', type=int, default=10,
+                    help='The number of MD steps taken at once. More takes longer to compile but runs faster in the end.')
+parser.add_argument('--resume', action='store_true')
+parser.add_argument('--override', action='store_true')
+
 
 def human_format(num):
     """https://stackoverflow.com/a/45846841/4417954"""
@@ -43,24 +53,6 @@ def human_format(num):
             magnitude += 1
             num *= 1000.0
         return '{}{}'.format('{:f}'.format(num).rstrip('0').rstrip('.'), ['', 'm', 'µ', 'n', 'p', 'f'][magnitude])
-
-
-def interpolate(points, steps):
-    def interpolate_two_points(start, stop, steps):
-        t = jnp.linspace(0, 1, steps + 1).reshape(steps + 1, 1)
-        interpolated_tensors = jnp.array(start) * (1 - t) + jnp.array(stop) * t
-        return interpolated_tensors
-
-    step_size = steps // (len(points) - 1)
-    remaining = steps % (len(points) - 1)
-
-    interpolation = []
-    for i in range(len(points) - 1):
-        cur_step_size = step_size + (1 if i < remaining else 0)
-        current = interpolate_two_points(points[i], points[i + 1], cur_step_size)
-        interpolation.extend(current if i == 0 else current[1:])
-
-    return interpolation
 
 
 def ramachandran(samples, bins=100, path=None, paths=None, states=None, alpha=1.0):
@@ -126,13 +118,27 @@ def is_within(_phis_psis, _center, _radius, _period=2 * jnp.pi):
 
 deg = 180.0 / jnp.pi
 
+
+def step_n(step, _x, _v, n, _key):
+    all_x, all_v = jnp.zeros((n, *_x.shape)), jnp.zeros((n, *_v.shape))
+    for i in range(n):
+        _key, _iter_key = jax.random.split(_key)
+        _x, _v = step(_x, _v, _iter_key)
+        all_x = all_x.at[i].set(_x)
+        all_v = all_v.at[i].set(_v)
+
+    return all_x, all_v
+
+
 if __name__ == '__main__':
+    args = parser.parse_args()
+
     init_pdb = app.PDBFile("./files/AD_A.pdb")
     target_pdb = app.PDBFile("./files/AD_B.pdb")
     mdtraj_topology = md.Topology.from_openmm(init_pdb.topology)
     phis_psis = phi_psi_from_mdtraj(mdtraj_topology)
 
-    savedir = f"baselines/alanine"
+    savedir = f"out/baselines/alanine-{args.mechanism}-{args.fixed_length}"
     os.makedirs(savedir, exist_ok=True)
 
     # Construct the mass matrix
@@ -177,13 +183,8 @@ if __name__ == '__main__':
 
     @jax.jit
     @jax.vmap
-    def dUdx_fn_unscaled(_x):
-        return jax.grad(lambda _x: U(_x).sum())(_x)
-
-
-    @jax.jit
     def dUdx_fn(_x):
-        return dUdx_fn_unscaled(_x) / mass / gamma
+        return jax.grad(lambda _x: U(_x).sum())(_x) / mass / gamma_in_ps
 
 
     @jax.jit
@@ -194,34 +195,36 @@ if __name__ == '__main__':
 
     @jax.jit
     def step_langevin_forward(_x, _v, _key):
-        """Perform one step of forward langevin"""
+        """Perform one step of forward langevin as implemented in openmm"""
         alpha = jnp.exp(-gamma_in_ps * dt_in_ps)
         f_scale = (1 - alpha) / gamma_in_ps
-        new_v_det = alpha * _v + f_scale * -dUdx_fn_unscaled(_x) / mass
+        new_v_det = alpha * _v + f_scale * -dUdx_fn(_x)
         new_v = new_v_det + jnp.sqrt(kbT * (1 - alpha ** 2) / mass) * jax.random.normal(_key, _x.shape)
 
         return _x + dt_in_ps * new_v, new_v
 
+
     @jax.jit
-    def step_langevin_log_density(_x, _v, _new_x, _new_v):
+    def step_langevin_log_prob(_x, _v, _new_x, _new_v):
         alpha = jnp.exp(-gamma_in_ps * dt_in_ps)
         f_scale = (1 - alpha) / gamma_in_ps
-        new_v_det = alpha * _v + f_scale * -dUdx_fn_unscaled(_x) / mass
+        new_v_det = alpha * _v + f_scale * -dUdx_fn(_x)
         new_v_rand = new_v_det - _new_v
 
         return jax.scipy.stats.norm.logpdf(new_v_rand, 0, jnp.sqrt(kbT * (1 - alpha ** 2) / mass)).sum()
 
 
-    def langevin_log_path_density(path_and_velocities):
+    def langevin_log_path_likelihood(path_and_velocities):
         path, velocities = path_and_velocities
 
         log_prob = (-U(path[0]) / kbT).sum()
         log_prob += jax.scipy.stats.norm.logpdf(velocities[0], 0, jnp.sqrt(kbT / mass)).sum()
 
         for i in range(1, len(path)):
-            log_prob += step_langevin_log_density(path[i - 1], velocities[i - 1], path[i], velocities[i])
+            log_prob += step_langevin_log_prob(path[i - 1], velocities[i - 1], path[i], velocities[i])
 
         return log_prob
+
 
     @jax.jit
     def step_langevin_backward(_x, _v, _key):
@@ -229,39 +232,11 @@ if __name__ == '__main__':
         alpha = jnp.exp(-gamma_in_ps * dt_in_ps)
         f_scale = (1 - alpha) / gamma_in_ps
         prev_x = _x - dt_in_ps * _v
-        prev_v = 1 / alpha * (_v + f_scale * dUdx_fn_unscaled(prev_x) / mass - jnp.sqrt(
+        prev_v = 1 / alpha * (_v + f_scale * dUdx_fn(prev_x) - jnp.sqrt(
             kbT * (1 - alpha ** 2) / mass) * jax.random.normal(_key, _x.shape))
 
         return prev_x, prev_v
 
-
-    key = jax.random.PRNGKey(1)
-    key, velocity_key = jax.random.split(key)
-    steps = 10_000
-
-    trajectory = [A]
-    _x = trajectory[-1]
-    _v = jnp.sqrt(kbT / mass) * jax.random.normal(velocity_key, (1, 66))
-
-    for i in trange(steps):
-        key, iter_key = jax.random.split(key)
-        _x, _v = step_langevin_forward(_x, _v, iter_key)
-
-        trajectory.append(_x)
-
-    trajectory = jnp.array(trajectory).reshape(-1, 66)
-
-    # save_trajectory(mdtraj_topology, trajectory[-1000:], 'simulation.pdb')
-
-    # we only need to check whether the last frame contains nan, is it propagates
-    assert not jnp.isnan(trajectory[-1]).any()
-    trajectory_phi_psi = phis_psis(trajectory)
-
-    plt.title(f"{human_format(steps)} steps @ {temp} K, dt = {human_format(dt)}s")
-    ramachandran(trajectory_phi_psi)
-    plt.scatter(phis_psis(A)[0, 0], phis_psis(A)[0, 1], color='red', marker='*')
-    plt.scatter(phis_psis(B)[0, 0], phis_psis(B)[0, 1], color='green', marker='*')
-    plt.show()
 
     # Choose a system, either phi psi, or rmsd
     # system = tps1.System(
@@ -272,49 +247,57 @@ if __name__ == '__main__':
 
     radius = 20 / deg
 
-    system = tps1.FirstOrderSystem(
-        lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(A), radius),
-        lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(B), radius),
-        step
-    )
+    # system = tps1.FirstOrderSystem(
+    #     lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(A), radius),
+    #     lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(B), radius),
+    #     step
+    # )
 
     system = tps2.SecondOrderSystem(
         jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(A), radius)),
         jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(B), radius)),
         # jax.jit(jax.vmap(lambda s: kabsch_rmsd(A.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
         # jax.jit(jax.vmap(lambda s: kabsch_rmsd(B.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
-        step_langevin_forward,
-        step_langevin_backward,
+        jax.jit(lambda _x, _v, _key: step_n(step_langevin_forward, _x, _v, args.num_steps, _key)),
+        jax.jit(lambda _x, _v, _key: step_n(step_langevin_backward, _x, _v, args.num_steps, _key)),
         jax.jit(lambda key: jnp.sqrt(kbT / mass) * jax.random.normal(key, (1, 66)))
     )
-
-    print("A", phis_psis(A))
-    print("B", phis_psis(B))
-
-    filter1 = system.start_state(trajectory)
-    filter2 = system.target_state(trajectory)
-
-    plt.title('start')
-    ramachandran(trajectory_phi_psi[filter1])
-    plt.show()
-
-    plt.title('target')
-    ramachandran(trajectory_phi_psi[filter2])
-    plt.show()
 
     initial_trajectory = md.load('./files/AD_A_B_500K_initial_trajectory.pdb').xyz.reshape(-1, 1, 66)
     initial_trajectory = [p for p in initial_trajectory]
     save_trajectory(mdtraj_topology, jnp.array(initial_trajectory), f'{savedir}/initial_trajectory.pdb')
 
-    load = False
-    if load:
-        paths = np.load(f'{savedir}/paths.npy', allow_pickle=True)
-        velocities = np.load(f'{savedir}/velocities.npy', allow_pickle=True)
+    if args.resume:
+        paths = [[x for x in p.astype(np.float32)] for p in np.load(f'{savedir}/paths.npy', allow_pickle=True)]
+        velocities = [[v for v in p.astype(np.float32)] for p in np.load(f'{savedir}/velocities.npy', allow_pickle=True)]
         with open(f'{savedir}/stats.json', 'r') as fp:
             statistics = json.load(fp)
+
+        stored = {
+            'trajectories': [initial_trajectory] + paths,
+            'velocities': velocities,
+            'statistics': statistics
+        }
     else:
-        paths, velocities, statistics = tps2.mcmc_shooting(system, tps2.two_way_shooting, initial_trajectory,
-                                               100, jax.random.PRNGKey(1), warmup=10)
+        if os.path.exists(f'{savedir}/paths.npy') and not args.override:
+            print(f"The target directory is not empy."
+                  f"Please use --override to overwrite the existing data or --resume to continue.")
+            exit(1)
+
+        stored = None
+
+    if args.mechanism == 'one-way-shooting':
+        mechanism = tps2.one_way_shooting
+    elif args.mechanism == 'two-way-shooting':
+        mechanism = tps2.two_way_shooting
+    else:
+        raise ValueError(f"Unknown mechanism {args.mechanism}")
+
+    try:
+        paths, velocities, statistics = tps2.mcmc_shooting(system, mechanism, initial_trajectory,
+                                                           100, dt_in_ps, jax.random.PRNGKey(1), warmup=0,
+                                                           fixed_length=args.fixed_length,
+                                                           stored=stored)
         # paths = tps2.unguided_md(system, B, 1, key)
         paths = [jnp.array(p) for p in paths]
         velocities = [jnp.array(p) for p in velocities]
@@ -324,6 +307,9 @@ if __name__ == '__main__':
         # save statistics, which is a dictionary
         with open(f'{savedir}/stats.json', 'w') as fp:
             json.dump(statistics, fp)
+    except Exception as e:
+        print(e)
+        breakpoint()
 
     print(statistics)
     print([len(p) for p in paths])
@@ -356,8 +342,8 @@ if __name__ == '__main__':
     plt.show()
     plt.clf()
 
-    plot_path_energy(list(zip(paths, velocities)), langevin_log_path_density, reduce=lambda x: x, already_ln=True)
-    plt.ylabel('Path Density')
+    plot_path_energy(list(zip(paths, velocities)), langevin_log_path_likelihood, reduce=lambda x: x, already_ln=True)
+    plt.ylabel('Path Likelihood')
     plt.savefig(f'{savedir}/path_density.png', bbox_inches='tight')
     plt.show()
     plt.clf()
