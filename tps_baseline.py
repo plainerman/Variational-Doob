@@ -27,6 +27,14 @@ from utils.angles import phi_psi_from_mdtraj
 from utils.animation import save_trajectory, to_md_traj
 from utils.rmsd import kabsch_align, kabsch_rmsd
 
+from argparse import ArgumentParser
+
+parser = ArgumentParser()
+parser.add_argument('--mechanism', type=str, choices=['one-way-shooting', 'two-way-shooting'], required=True)
+parser.add_argument('--fixed_length', type=int, default=0)
+parser.add_argument('--num_steps', type=int, default=10,
+                    help='The number of MD steps taken at once. More takes longer to compile but runs faster in the end.')
+
 
 def human_format(num):
     """https://stackoverflow.com/a/45846841/4417954"""
@@ -121,12 +129,14 @@ def step_n(step, _x, _v, n, _key):
 
 
 if __name__ == '__main__':
+    args = parser.parse_args()
+
     init_pdb = app.PDBFile("./files/AD_A.pdb")
     target_pdb = app.PDBFile("./files/AD_B.pdb")
     mdtraj_topology = md.Topology.from_openmm(init_pdb.topology)
     phis_psis = phi_psi_from_mdtraj(mdtraj_topology)
 
-    savedir = f"out/baselines/alanine"
+    savedir = f"out/baselines/alanine-{args.mechanism}"
     os.makedirs(savedir, exist_ok=True)
 
     # Construct the mass matrix
@@ -171,13 +181,8 @@ if __name__ == '__main__':
 
     @jax.jit
     @jax.vmap
-    def dUdx_fn_unscaled(_x):
-        return jax.grad(lambda _x: U(_x).sum())(_x)
-
-
-    @jax.jit
     def dUdx_fn(_x):
-        return dUdx_fn_unscaled(_x) / mass / gamma
+        return jax.grad(lambda _x: U(_x).sum())(_x) / mass / gamma_in_ps
 
 
     @jax.jit
@@ -188,10 +193,10 @@ if __name__ == '__main__':
 
     @jax.jit
     def step_langevin_forward(_x, _v, _key):
-        """Perform one step of forward langevin"""
+        """Perform one step of forward langevin as implemented in openmm"""
         alpha = jnp.exp(-gamma_in_ps * dt_in_ps)
         f_scale = (1 - alpha) / gamma_in_ps
-        new_v_det = alpha * _v + f_scale * -dUdx_fn_unscaled(_x) / mass
+        new_v_det = alpha * _v + f_scale * -dUdx_fn(_x)
         new_v = new_v_det + jnp.sqrt(kbT * (1 - alpha ** 2) / mass) * jax.random.normal(_key, _x.shape)
 
         return _x + dt_in_ps * new_v, new_v
@@ -201,7 +206,7 @@ if __name__ == '__main__':
     def step_langevin_log_density(_x, _v, _new_x, _new_v):
         alpha = jnp.exp(-gamma_in_ps * dt_in_ps)
         f_scale = (1 - alpha) / gamma_in_ps
-        new_v_det = alpha * _v + f_scale * -dUdx_fn_unscaled(_x) / mass
+        new_v_det = alpha * _v + f_scale * -dUdx_fn(_x)
         new_v_rand = new_v_det - _new_v
 
         return jax.scipy.stats.norm.logpdf(new_v_rand, 0, jnp.sqrt(kbT * (1 - alpha ** 2) / mass)).sum()
@@ -225,7 +230,7 @@ if __name__ == '__main__':
         alpha = jnp.exp(-gamma_in_ps * dt_in_ps)
         f_scale = (1 - alpha) / gamma_in_ps
         prev_x = _x - dt_in_ps * _v
-        prev_v = 1 / alpha * (_v + f_scale * dUdx_fn_unscaled(prev_x) / mass - jnp.sqrt(
+        prev_v = 1 / alpha * (_v + f_scale * dUdx_fn(prev_x) - jnp.sqrt(
             kbT * (1 - alpha ** 2) / mass) * jax.random.normal(_key, _x.shape))
 
         return prev_x, prev_v
@@ -281,8 +286,8 @@ if __name__ == '__main__':
         # jax.jit(jax.vmap(lambda s: kabsch_rmsd(B.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
         # step_langevin_forward,
         # step_langevin_backward,
-        jax.jit(lambda _x, _v, _key: step_n(step_langevin_forward, _x, _v, 40, _key)),
-        jax.jit(lambda _x, _v, _key: step_n(step_langevin_backward, _x, _v, 40, _key)),
+        jax.jit(lambda _x, _v, _key: step_n(step_langevin_forward, _x, _v, args.num_steps, _key)),
+        jax.jit(lambda _x, _v, _key: step_n(step_langevin_backward, _x, _v, args.num_steps, _key)),
         jax.jit(lambda key: jnp.sqrt(kbT / mass) * jax.random.normal(key, (1, 66)))
     )
 
@@ -311,9 +316,17 @@ if __name__ == '__main__':
         with open(f'{savedir}/stats.json', 'r') as fp:
             statistics = json.load(fp)
     else:
+        if args.mechanism == 'one-way-shooting':
+            mechanism = tps2.one_way_shooting
+        elif args.mechanism == 'two-way-shooting':
+            mechanism = tps2.two_way_shooting
+        else:
+            raise ValueError(f"Unknown mechanism {args.mechanism}")
+
         try:
-            paths, velocities, statistics = tps2.mcmc_shooting(system, tps2.two_way_shooting, initial_trajectory,
-                                                               100, jax.random.PRNGKey(1), warmup=0, fixed_length=1000)
+            paths, velocities, statistics = tps2.mcmc_shooting(system, mechanism, initial_trajectory,
+                                                               100, dt_in_ps, jax.random.PRNGKey(1), warmup=0,
+                                                               fixed_length=args.fixed_length)
             # paths = tps2.unguided_md(system, B, 1, key)
             paths = [jnp.array(p) for p in paths]
             velocities = [jnp.array(p) for p in velocities]
@@ -324,6 +337,7 @@ if __name__ == '__main__':
             with open(f'{savedir}/stats.json', 'w') as fp:
                 json.dump(statistics, fp)
         except Exception as e:
+            print(e)
             breakpoint()
 
     print(statistics)
