@@ -149,7 +149,7 @@ def two_way_shooting(system, trajectory, fixed_length, _dt, key):
     return False, new_trajectory, new_velocities
 
 
-def mcmc_shooting(system, proposal, initial_trajectory, num_paths, dt, key, fixed_length=0, warmup=50):
+def mcmc_shooting(system, proposal, initial_trajectory, num_paths, dt, key, fixed_length=0, warmup=50, stored=None):
     # pick an initial trajectory
     trajectories = [initial_trajectory]
     velocities = []
@@ -165,8 +165,14 @@ def mcmc_shooting(system, proposal, initial_trajectory, num_paths, dt, key, fixe
     if fixed_length > 0:
         statistics['fixed_length'] = fixed_length
 
+    if stored is not None:
+        trajectories = stored['trajectories']
+        velocities = stored['velocities']
+        statistics = stored['statistics']
+
     try:
-        with tqdm(total=num_paths + warmup, desc='warming up' if warmup > 0 else '') as pbar:
+        with tqdm(total=num_paths + warmup, initial=len(trajectories) - 1,
+                  desc='warming up' if warmup > 0 else '') as pbar:
             while len(trajectories) <= num_paths + warmup:
                 statistics['num_tries'] += 1
                 if len(trajectories) > warmup:
@@ -194,7 +200,7 @@ def mcmc_shooting(system, proposal, initial_trajectory, num_paths, dt, key, fixe
     except KeyboardInterrupt:
         print('SIGINT received, stopping early')
         # Fix in case we stop when adding a trajectory
-        if len(trajectories) > len(velocities):
+        if len(trajectories) > len(velocities) + 1:
             velocities.append(new_velocities)
 
     return trajectories[warmup + 1:], velocities[warmup:], statistics
