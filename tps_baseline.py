@@ -342,21 +342,25 @@ if __name__ == '__main__':
     ], alpha=0.7)
     plt.savefig(f'{savedir}/paths.png', bbox_inches='tight')
     plt.show()
+    plt.clf()
 
     plot_path_energy(paths, jax.vmap(U))
     plt.ylabel('Maximum energy')
     plt.savefig(f'{savedir}/max_energy.png', bbox_inches='tight')
     plt.show()
+    plt.clf()
 
     plot_path_energy(paths, jax.vmap(U), reduce=jnp.median)
     plt.ylabel('Median energy')
     plt.savefig(f'{savedir}/median_energy.png', bbox_inches='tight')
     plt.show()
+    plt.clf()
 
     plot_path_energy(list(zip(paths, velocities)), langevin_log_path_density, reduce=lambda x: x, already_ln=True)
     plt.ylabel('Path Density')
     plt.savefig(f'{savedir}/path_density.png', bbox_inches='tight')
     plt.show()
+    plt.clf()
 
     for i, path in tqdm(enumerate(paths)):
         save_trajectory(mdtraj_topology, jnp.array([kabsch_align(p.reshape(-1, 3), B.reshape(-1, 3))[0] for p in path]),
