@@ -1,4 +1,5 @@
 import json
+from functools import partial
 
 import jax
 import jax.numpy as jnp
@@ -6,6 +7,7 @@ import os
 import matplotlib.pyplot as plt
 from tps import first_order as tps1
 import numpy as np
+import utils.toy_plot_helpers as toy
 
 minima_points = jnp.array([[-0.55828035, 1.44169], [-0.05004308, 0.46666032], [0.62361133, 0.02804632]])
 A, B = minima_points[None, 0], minima_points[None, 2]
@@ -44,51 +46,8 @@ def interpolate(points, steps):
     return interpolation
 
 
-def plot_energy_surface(points=[], trajectories=[], bins=150, alpha=0.7):
-    xlim, ylim = jnp.array((-1.5, 0.9)), jnp.array((-0.5, 1.7))
-
-    x, y = jnp.linspace(xlim[0], xlim[1], bins), jnp.linspace(ylim[0], ylim[1], bins)
-    x, y = jnp.meshgrid(x, y, indexing='ij')
-    z = U(jnp.stack([x, y], -1).reshape(-1, 2)).reshape([bins, bins])
-
-    # black and white contour plot
-    plt.contour(x, y, z, levels=30, cmap='gray')
-
-    plt.xlim(xlim[0], xlim[1])
-    plt.ylim(ylim[0], ylim[1])
-
-    if len(trajectories) > 0:
-        from openpathsampling.analysis import PathHistogram
-        from openpathsampling.numerics import HistogramPlotter2D
-
-        hist = PathHistogram(
-            left_bin_edges=(xlim[0], ylim[0]),
-            bin_widths=(jnp.diff(xlim)[0] / bins, jnp.diff(ylim)[0] / bins),
-            interpolate=True, per_traj=True
-        )
-
-        [hist.add_trajectory(t) for t in trajectories]
-
-        plotter = HistogramPlotter2D(hist, xlim=xlim, ylim=ylim)
-        df = hist().df_2d(x_range=plotter.xrange_, y_range=plotter.yrange_)
-        plt.pcolormesh(
-            jnp.linspace(xlim[0], xlim[1], df.shape[0]),
-            jnp.linspace(ylim[0], ylim[1], df.shape[1]),
-            df.values.T.astype(dtype=float),
-            vmin=0, vmax=3, cmap='Blues',
-            rasterized=True
-        )
-
-        plt.colorbar()
-
-    for p in points:
-        plt.scatter(p[0], p[1], marker='*')
-
-    for name, pos in zip(['A', 'B', 'C'], minima_points):
-        c = plt.Circle(pos, radius=0.1, edgecolor='gray', alpha=alpha, facecolor='white', ls='--', lw=0.7)
-        plt.gca().add_patch(c)
-        plt.gca().annotate(name, xy=pos, ha="center", va="center")
-
+plot_energy_surface = partial(toy.plot_energy_surface, U=U, states=zip(['A', 'B', 'C'], minima_points),
+                              xlim=jnp.array((-1.5, 0.9)), ylim=jnp.array((-0.5, 1.7)))
 
 if __name__ == '__main__':
     savedir = f"out/baselines/mueller"
@@ -100,6 +59,7 @@ if __name__ == '__main__':
     T = 275e-4
     N = int(T / dt)
     initial_trajectory = [t.reshape(1, 2) for t in interpolate(minima_points, N)]
+
 
     @jax.jit
     def step(_x, _key):
