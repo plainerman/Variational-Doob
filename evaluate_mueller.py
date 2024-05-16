@@ -20,9 +20,9 @@ def load(path):
 
 
 @jax.jit
-def log_prob_path(path):
+def log_path_likelihood(path):
     rand = path[1:] - path[:-1] + dt * dUdx_fn(path[:-1])
-    return U(path[0]) / kbT + jax.scipy.stats.norm.logpdf(rand, scale=jnp.sqrt(dt) * xi).sum()
+    return (-U(path[0]) / kbT).sum() + jax.scipy.stats.norm.logpdf(rand, scale=jnp.sqrt(dt) * xi).sum()
 
 
 if __name__ == '__main__':
@@ -60,8 +60,8 @@ if __name__ == '__main__':
     plt.show()
 
     for name, paths in all_paths:
-        plot_path_energy(paths, log_prob_path, reduce=lambda x: x, label=name)
-        print('Median log-likelihood of:', name, jnp.median(jnp.array([log_prob_path(path) for path in paths])))
+        plot_path_energy(paths, log_path_likelihood, reduce=lambda x: x, label=name)
+        print('Median log-likelihood of:', name, jnp.median(jnp.array([log_path_likelihood(path) for path in paths])))
 
     plt.legend()
     plt.ylabel('log path likelihood')
