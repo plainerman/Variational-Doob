@@ -58,7 +58,7 @@ if __name__ == '__main__':
     dt = 1e-4
     T = 275e-4
     N = int(T / dt)
-    initial_trajectory = [t.reshape(1, 2) for t in interpolate(minima_points, N)]
+    initial_trajectory = [t.reshape(1, 2) for t in interpolate(minima_points, 100 if N == 0 else N)]
 
 
     @jax.jit
