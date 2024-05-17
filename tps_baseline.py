@@ -365,6 +365,6 @@ if __name__ == '__main__':
     plt.show()
     plt.clf()
 
-    for i, path in tqdm(enumerate(paths)):
+    for i, path in tqdm(enumerate(paths), desc='Saving trajectories', total=len(paths)):
         save_trajectory(mdtraj_topology, jnp.array([kabsch_align(p.reshape(-1, 3), B.reshape(-1, 3))[0] for p in path]),
                         f'{savedir}/trajectory_{i}.pdb')
