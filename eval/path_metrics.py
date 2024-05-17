@@ -4,7 +4,7 @@ from tqdm import tqdm
 
 
 def plot_path_energy(paths, U, reduce=jnp.max, add=0, already_ln=False, **kwargs):
-    reduced = jnp.array([reduce(U(path)) for path in paths]) + add
+    reduced = jnp.array([reduce(U(path)) for path in tqdm(paths)]) + add
 
     if already_ln:
         # Convert reduced to log10

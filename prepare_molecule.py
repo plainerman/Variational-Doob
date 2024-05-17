@@ -16,7 +16,7 @@ if __name__ == '__main__':
     kbT = 1.380649 * 6.02214076 * 1e-3 * temp
     gamma_in_ps = 1.0
     dt_in_ps = 1e-3
-    steps = 100_000
+    steps = 1_000_000
 
     files = [('./files/chignolin_folded.pdb', './files/chignolin_folded_relaxed.pdb'),
              ('./files/chignolin_unfolded.pdb', './files/chignolin_unfolded_relaxed.pdb')]

@@ -38,6 +38,8 @@ parser.add_argument('--num_steps', type=int, default=10,
                     help='The number of MD steps taken at once. More takes longer to compile but runs faster in the end.')
 parser.add_argument('--resume', action='store_true')
 parser.add_argument('--override', action='store_true')
+parser.add_argument('--ensure_connected', action='store_true',
+                    help='Ensure that the initial path connects A with B by prepending A and appending B.')
 
 
 def human_format(num):
@@ -278,6 +280,10 @@ if __name__ == '__main__':
 
     initial_trajectory = md.load('./files/AD_A_B_500K_initial_trajectory.pdb').xyz.reshape(-1, 1, 66)
     initial_trajectory = [p for p in initial_trajectory]
+
+    if args.ensure_connected:
+        initial_trajectory = [A] + [p for p in initial_trajectory] + [B]
+
     save_trajectory(mdtraj_topology, jnp.array(initial_trajectory), f'{savedir}/initial_trajectory.pdb')
 
     if args.resume:
@@ -359,6 +365,8 @@ if __name__ == '__main__':
     plt.savefig(f'{savedir}/paths.png', bbox_inches='tight')
     plt.show()
     plt.clf()
+
+    print("Plotting path-summary metrics.")
 
     plot_path_energy(paths, jax.vmap(U))
     plt.ylabel('Maximum energy')
