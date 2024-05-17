@@ -21,6 +21,9 @@ if __name__ == '__main__':
     files = [('./files/chignolin_folded.pdb', './files/chignolin_folded_relaxed.pdb'),
              ('./files/chignolin_unfolded.pdb', './files/chignolin_unfolded_relaxed.pdb')]
 
+    # !!! IMPORTANT !!!
+    # The files still have to be kabsch aligned
+    # use A, B = kabsch_align(A, B) to align two structures
 
     def minimize(pdb, out, steps):
         pdb = app.PDBFile(pdb)
