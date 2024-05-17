@@ -1,6 +1,6 @@
 import os
 from functools import partial
-
+import traceback
 import jax
 import numpy as np
 import matplotlib.pyplot as plt
@@ -31,7 +31,9 @@ from argparse import ArgumentParser
 
 parser = ArgumentParser()
 parser.add_argument('--mechanism', type=str, choices=['one-way-shooting', 'two-way-shooting'], required=True)
+parser.add_argument('--states', type=str, default='phi-psi', choices=['phi-psi', 'rmsd'])
 parser.add_argument('--fixed_length', type=int, default=0)
+parser.add_argument('--num_paths', type=int, required=True)
 parser.add_argument('--num_steps', type=int, default=10,
                     help='The number of MD steps taken at once. More takes longer to compile but runs faster in the end.')
 parser.add_argument('--resume', action='store_true')
@@ -138,7 +140,12 @@ if __name__ == '__main__':
     mdtraj_topology = md.Topology.from_openmm(init_pdb.topology)
     phis_psis = phi_psi_from_mdtraj(mdtraj_topology)
 
-    savedir = f"out/baselines/alanine-{args.mechanism}-{args.fixed_length}"
+    savedir = f"out/baselines/alanine-{args.mechanism}"
+    if args.fixed_length > 0:
+        savedir += f'-{args.fixed_length}steps'
+    if args.states == 'rmsd':
+        savedir += '-rmsd'
+
     os.makedirs(savedir, exist_ok=True)
 
     # Construct the mass matrix
@@ -253,11 +260,17 @@ if __name__ == '__main__':
     #     step
     # )
 
+    if args.states == 'rmsd':
+        state_A = jax.jit(jax.vmap(lambda s: kabsch_rmsd(A.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2))
+        state_B = jax.jit(jax.vmap(lambda s: kabsch_rmsd(B.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2))
+    elif args.states == 'phi-psi':
+        state_A = jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(A), radius))
+        state_B = jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(B), radius))
+    else:
+        raise ValueError(f"Unknown states {args.states}")
+
     system = tps2.SecondOrderSystem(
-        jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(A), radius)),
-        jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(B), radius)),
-        # jax.jit(jax.vmap(lambda s: kabsch_rmsd(A.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
-        # jax.jit(jax.vmap(lambda s: kabsch_rmsd(B.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2)),
+        state_A, state_B,
         jax.jit(lambda _x, _v, _key: step_n(step_langevin_forward, _x, _v, args.num_steps, _key)),
         jax.jit(lambda _x, _v, _key: step_n(step_langevin_backward, _x, _v, args.num_steps, _key)),
         jax.jit(lambda key: jnp.sqrt(kbT / mass) * jax.random.normal(key, (1, 66)))
@@ -269,7 +282,8 @@ if __name__ == '__main__':
 
     if args.resume:
         paths = [[x for x in p.astype(np.float32)] for p in np.load(f'{savedir}/paths.npy', allow_pickle=True)]
-        velocities = [[v for v in p.astype(np.float32)] for p in np.load(f'{savedir}/velocities.npy', allow_pickle=True)]
+        velocities = [[v for v in p.astype(np.float32)] for p in
+                      np.load(f'{savedir}/velocities.npy', allow_pickle=True)]
         with open(f'{savedir}/stats.json', 'r') as fp:
             statistics = json.load(fp)
 
@@ -295,7 +309,7 @@ if __name__ == '__main__':
 
     try:
         paths, velocities, statistics = tps2.mcmc_shooting(system, mechanism, initial_trajectory,
-                                                           100, dt_in_ps, jax.random.PRNGKey(1), warmup=0,
+                                                           args.num_paths, dt_in_ps, jax.random.PRNGKey(1), warmup=0,
                                                            fixed_length=args.fixed_length,
                                                            stored=stored)
         # paths = tps2.unguided_md(system, B, 1, key)
@@ -308,13 +322,16 @@ if __name__ == '__main__':
         with open(f'{savedir}/stats.json', 'w') as fp:
             json.dump(statistics, fp)
     except Exception as e:
-        print(e)
+        print(traceback.format_exc())
         breakpoint()
 
     print(statistics)
-    print([len(p) for p in paths])
-    plt.hist([len(p) for p in paths], bins=jnp.sqrt(len(paths)).astype(int).item())
-    plt.show()
+
+    if args.fixed_length == 0:
+        print([len(p) for p in paths])
+        plt.hist([len(p) for p in paths], bins=jnp.sqrt(len(paths)).astype(int).item())
+        plt.savefig(f'{savedir}/lengths.png', bbox_inches='tight')
+        plt.show()
 
     path_hist = PeriodicPathHistogram()
     for i, path in tqdm(enumerate(paths), desc='Adding paths to histogram', total=len(paths)):
