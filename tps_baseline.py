@@ -294,13 +294,22 @@ if __name__ == '__main__':
         }
     else:
         if os.path.exists(f'{savedir}/paths.npy') and not args.override:
-            print(f"The target directory is not empy."
+            print(f"The target directory is not empty.\n"
                   f"Please use --override to overwrite the existing data or --resume to continue.")
             exit(1)
 
         stored = None
 
+    assert ((system.start_state(A) and system.target_state(B))
+            or (system.start_state(B) and system.target_state(A))), \
+        'A and B are not in the correct states. Please check your settings.'
+
     if args.mechanism == 'one-way-shooting':
+        assert (system.start_state(initial_trajectory[0])
+                or system.target_state(initial_trajectory[0])
+                or system.start_state(initial_trajectory[-1])
+                or system.target_state(initial_trajectory[-1])
+                ), 'One-Way shooting requires the initial trajectory to start or end in one of the states.'
         mechanism = tps2.one_way_shooting
     elif args.mechanism == 'two-way-shooting':
         mechanism = tps2.two_way_shooting
@@ -324,6 +333,10 @@ if __name__ == '__main__':
     except Exception as e:
         print(traceback.format_exc())
         breakpoint()
+
+    if len(paths) == 0:
+        print("No paths found.")
+        exit(1)
 
     print(statistics)
 
