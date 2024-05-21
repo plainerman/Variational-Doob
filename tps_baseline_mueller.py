@@ -9,7 +9,9 @@ from tps import first_order as tps1
 import numpy as np
 import utils.toy_plot_helpers as toy
 
-minima_points = jnp.array([[-0.55828035, 1.44169], [-0.05004308, 0.46666032], [0.62361133, 0.02804632]])
+minima_points = jnp.array([[-0.55828035, 1.44169],
+                           #[-0.05004308, 0.46666032],
+                           [0.62361133, 0.02804632]])
 A, B = minima_points[None, 0], minima_points[None, 2]
 
 
@@ -46,20 +48,23 @@ def interpolate(points, steps):
     return interpolation
 
 
-plot_energy_surface = partial(toy.plot_energy_surface, U=U, states=zip(['A', 'B', 'C'], minima_points),
-                              xlim=jnp.array((-1.5, 0.9)), ylim=jnp.array((-0.5, 1.7)))
+plot_energy_surface = partial(toy.plot_energy_surface, U=U, states=zip(['A', 'B'], minima_points),
+                              xlim=jnp.array((-1.5, 0.9)), ylim=jnp.array((-0.5, 1.7)), alpha=1.0)
 
 if __name__ == '__main__':
+    variable = True
     savedir = f"out/baselines/mueller"
+    if variable:
+        savedir += "-variable"
+
     os.makedirs(savedir, exist_ok=True)
 
     num_paths = 1000
     xi = 5
     dt = 1e-4
     T = 275e-4
-    N = int(T / dt)
-    initial_trajectory = [t.reshape(1, 2) for t in interpolate(minima_points, 100 if N == 0 else N)]
-
+    N = 0 if variable else int(T / dt)
+    initial_trajectory = [t.reshape(1, 2) for t in interpolate(minima_points, 100 if variable else N)]
 
     @jax.jit
     def step(_x, _key):
@@ -97,3 +102,4 @@ if __name__ == '__main__':
         plot_energy_surface(trajectories=paths)
         plt.savefig(f'{savedir}/mueller-{name}.pdf', bbox_inches='tight')
         plt.show()
+        plt.clf()

@@ -2,13 +2,13 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
 
-def plot_energy_surface(U, states, xlim, ylim, points=[], trajectories=[], bins=150, levels=30, alpha=0.7):
+def plot_energy_surface(U, states, xlim, ylim, points=[], trajectories=[], bins=150, levels=30, alpha=0.7, radius=0.1):
     x, y = jnp.linspace(xlim[0], xlim[1], bins), jnp.linspace(ylim[0], ylim[1], bins)
     x, y = jnp.meshgrid(x, y, indexing='ij')
     z = U(jnp.stack([x, y], -1).reshape(-1, 2)).reshape([bins, bins])
 
     # black and white contour plot
-    plt.contour(x, y, z, levels=levels, cmap='gray')
+    plt.contour(x, y, z, levels=levels, colors='black')
 
     plt.xlim(xlim[0], xlim[1])
     plt.ylim(ylim[0], ylim[1])
@@ -35,12 +35,13 @@ def plot_energy_surface(U, states, xlim, ylim, points=[], trajectories=[], bins=
             rasterized=True
         )
 
-        plt.colorbar()
+    plt.xticks([])
+    plt.yticks([])
 
     for p in points:
         plt.scatter(p[0], p[1], marker='*')
 
     for name, pos in states:
-        c = plt.Circle(pos, radius=0.1, edgecolor='gray', alpha=alpha, facecolor='white', ls='--', lw=0.7)
+        c = plt.Circle(pos, radius=radius, edgecolor='gray', alpha=alpha, facecolor='white', ls='--', lw=0.7, zorder=100)
         plt.gca().add_patch(c)
-        plt.gca().annotate(name, xy=pos, ha="center", va="center")
+        plt.gca().annotate(name, xy=pos, ha="center", va="center", fontsize=14, zorder=101)
