@@ -12,3 +12,5 @@ def plot_path_energy(paths, U, reduce=jnp.max, add=0, already_ln=False, **kwargs
         plt.plot(jnp.arange(0, len(reduced), 1), reduced, **kwargs)
     else:
         plt.semilogy(jnp.arange(0, len(reduced), 1), reduced, **kwargs)
+
+    return reduced

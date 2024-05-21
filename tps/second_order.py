@@ -15,21 +15,25 @@ class SecondOrderSystem:
         self.sample_velocity = sample_velocity
 
 
-def one_way_shooting(system, trajectory, fixed_length, dt, key):
+def one_way_shooting(system, trajectory, previous_velocities, fixed_length, dt, key):
     key = jax.random.split(key)
 
-    # pick a random point along the trajectory
-    point_idx = jax.random.randint(key[0], (1,), 1, len(trajectory) - 1)[0]
-    # pick a random direction, either forward or backward
-    direction = jax.random.randint(key[1], (1,), 0, 2)[0]
+    if previous_velocities is None:
+        previous_velocities = [(trajectory[i] - trajectory[i - 1]) / dt for i in range(1, len(trajectory))]
+        previous_velocities.insert(0, system.sample_velocity(key[0]))
 
-    new_velocities = [(trajectory[point_idx] - trajectory[point_idx - 1]) / dt]
+    # pick a random point along the trajectory
+    point_idx = jax.random.randint(key[1], (1,), 1, len(trajectory) - 1)[0]
+    # pick a random direction, either forward or backward
+    direction = jax.random.randint(key[2], (1,), 0, 2)[0]
 
     if direction == 0:
         trajectory = trajectory[:point_idx + 1]
+        new_velocities = previous_velocities[:point_idx + 1]
         step_function = system.step_forward
     else:  # direction == 1:
         trajectory = trajectory[point_idx:][::-1]
+        new_velocities = previous_velocities[point_idx:][::-1]
         step_function = system.step_backward
 
     steps = MAX_STEPS if fixed_length == 0 else fixed_length
@@ -73,7 +77,7 @@ def one_way_shooting(system, trajectory, fixed_length, dt, key):
     return False, trajectory, new_velocities
 
 
-def two_way_shooting(system, trajectory, fixed_length, _dt, key):
+def two_way_shooting(system, trajectory, _previous_velocities, fixed_length, _dt, key):
     key = jax.random.split(key)
 
     # pick a random point along the trajectory
@@ -170,11 +174,14 @@ def mcmc_shooting(system, proposal, initial_trajectory, num_paths, dt, key, fixe
         velocities = stored['velocities']
         statistics = stored['statistics']
 
+    num_tries = 0
+    num_force_evaluations = 0
+    num_metropolis_rejected = 0
     try:
         with tqdm(total=num_paths + warmup, initial=len(trajectories) - 1,
                   desc='warming up' if warmup > 0 else '') as pbar:
             while len(trajectories) <= num_paths + warmup:
-                statistics['num_tries'] += 1
+                num_tries += 1
                 if len(trajectories) > warmup:
                     pbar.set_description('')
 
@@ -183,8 +190,12 @@ def mcmc_shooting(system, proposal, initial_trajectory, num_paths, dt, key, fixe
                 # during warmup, we want an iterative scheme
                 traj_idx = traj_idx if traj_idx < len(trajectories) else -1
 
-                found, new_trajectory, new_velocities = proposal(system, trajectories[traj_idx], fixed_length, dt, ikey)
-                statistics['num_force_evaluations'] += len(new_trajectory) - 1
+                # trajectories and velocities are one off
+                found, new_trajectory, new_velocities = proposal(system,
+                                                                 trajectories[traj_idx],
+                                                                 velocities[traj_idx - 1] if len(trajectories) > 1 else None,
+                                                                 fixed_length, dt, ikey)
+                num_force_evaluations += len(new_trajectory) - 1
 
                 if not found:
                     continue
@@ -192,11 +203,20 @@ def mcmc_shooting(system, proposal, initial_trajectory, num_paths, dt, key, fixe
                 ratio = len(trajectories[-1]) / len(new_trajectory)
                 # The first trajectory might have a very unreasonable length, so we skip it
                 if len(trajectories) == 1 or jax.random.uniform(accept_key, shape=(1,)) < ratio:
+                    # only update them in the dictionary once accepted
+                    # this allows us to continue the progress
+                    statistics['num_tries'] += num_tries
+                    statistics['num_force_evaluations'] += num_force_evaluations
+                    statistics['num_metropolis_rejected'] += num_metropolis_rejected
+                    num_tries = 0
+                    num_force_evaluations = 0
+                    num_metropolis_rejected = 0
+
                     trajectories.append(new_trajectory)
                     velocities.append(new_velocities)
                     pbar.update(1)
                 else:
-                    statistics['num_metropolis_rejected'] += 1
+                    num_metropolis_rejected += 1
     except KeyboardInterrupt:
         print('SIGINT received, stopping early')
         # Fix in case we stop when adding a trajectory

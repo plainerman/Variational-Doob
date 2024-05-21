@@ -1,5 +1,4 @@
 import os
-from functools import partial
 import traceback
 import jax
 import numpy as np
@@ -33,6 +32,7 @@ parser = ArgumentParser()
 parser.add_argument('--mechanism', type=str, choices=['one-way-shooting', 'two-way-shooting'], required=True)
 parser.add_argument('--states', type=str, default='phi-psi', choices=['phi-psi', 'rmsd'])
 parser.add_argument('--fixed_length', type=int, default=0)
+parser.add_argument('--warmup', type=int, default=0)
 parser.add_argument('--num_paths', type=int, required=True)
 parser.add_argument('--num_steps', type=int, default=10,
                     help='The number of MD steps taken at once. More takes longer to compile but runs faster in the end.')
@@ -214,6 +214,18 @@ if __name__ == '__main__':
 
 
     @jax.jit
+    def step_langevin_backward(_x, _v, _key):
+        """Perform one step of backward langevin"""
+        alpha = jnp.exp(-gamma_in_ps * dt_in_ps)
+        f_scale = (1 - alpha) / gamma_in_ps
+        prev_x = _x - dt_in_ps * _v
+        prev_v = 1 / alpha * (_v + f_scale * dUdx_fn(prev_x) - jnp.sqrt(
+            kbT * (1 - alpha ** 2) / mass) * jax.random.normal(_key, _x.shape))
+
+        return prev_x, prev_v
+
+
+    @jax.jit
     def step_langevin_log_prob(_x, _v, _new_x, _new_v):
         alpha = jnp.exp(-gamma_in_ps * dt_in_ps)
         f_scale = (1 - alpha) / gamma_in_ps
@@ -225,6 +237,8 @@ if __name__ == '__main__':
 
     def langevin_log_path_likelihood(path_and_velocities):
         path, velocities = path_and_velocities
+        assert len(path) == len(velocities), \
+            f'path and velocities must have the same length, but got {len(path)} and {len(velocities)}'
 
         log_prob = (-U(path[0]) / kbT).sum()
         log_prob += jax.scipy.stats.norm.logpdf(velocities[0], 0, jnp.sqrt(kbT / mass)).sum()
@@ -233,18 +247,6 @@ if __name__ == '__main__':
             log_prob += step_langevin_log_prob(path[i - 1], velocities[i - 1], path[i], velocities[i])
 
         return log_prob
-
-
-    @jax.jit
-    def step_langevin_backward(_x, _v, _key):
-        """Perform one step of backward langevin"""
-        alpha = jnp.exp(-gamma_in_ps * dt_in_ps)
-        f_scale = (1 - alpha) / gamma_in_ps
-        prev_x = _x - dt_in_ps * _v
-        prev_v = 1 / alpha * (_v + f_scale * dUdx_fn(prev_x) - jnp.sqrt(
-            kbT * (1 - alpha ** 2) / mass) * jax.random.normal(_key, _x.shape))
-
-        return prev_x, prev_v
 
 
     # Choose a system, either phi psi, or rmsd
@@ -324,7 +326,8 @@ if __name__ == '__main__':
 
     try:
         paths, velocities, statistics = tps2.mcmc_shooting(system, mechanism, initial_trajectory,
-                                                           args.num_paths, dt_in_ps, jax.random.PRNGKey(1), warmup=0,
+                                                           args.num_paths, dt_in_ps, jax.random.PRNGKey(1),
+                                                           warmup=args.warmup,
                                                            fixed_length=args.fixed_length,
                                                            stored=stored)
         # paths = tps2.unguided_md(system, B, 1, key)
