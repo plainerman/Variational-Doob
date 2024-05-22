@@ -1,21 +1,41 @@
-# Packages
+# Doob’s Lagrangian: A Sample-Efficient Variational Approach to Transition Path Sampling
+In this work, we propose a novel variational approach to transition path sampling (TPS) based on the Doob’s h-transform. Our method can be used to sample transition paths between two meta-stable states of molecular systems.
 
-You can use the `environment.yml` file, BUT  it is only for CPU.
 
-openmm, dmff, mdtraj
+## Setup
 
-openmm needs to be installed by conda following the instruction
+You can use the `environment.yml` file to setup this project. However, it only works on CPU.
 
-mdtraj is easy to install 
-
-dmff needs to be installed from source code https://github.com/deepmodeling/DMFF/blob/master/docs/user_guide/2.installation.md
-you can install it with 
-
-```
-pip install dmff @ git+https://github.com/deepmodeling/DMFF@v1.0.0
+```bash
+conda env create -f environment.yml
 ```
 
-# Run the code 
+## Getting started
+
+The best way to get started is to look at the jupyter notebooks which contain code for the Müller-Brown potential.
+There is one for the [first order Langevin dynamics](notebooks/tps_gaussian.ipynb) and one for the [second order Langevin dynamics](notebooks/tps_gaussian_2nd.ipynb).
+
+## Running the baselines
+
+To run the baselines (i.e., TPS with shooting) you can run
+
+```bash
+python tps_baseline_mueller.py
+python eval/evaluate_mueller.py
 ```
-python main_md.py
+
+and 
+
+```bash
+python tps_baseline.py
+python eval/evaluate_tps.py
+```
+
+respectively. In both cases, you might need to change the paths that you want to evaluate.
+
+## Run our method
+To sample trajectories for the Müller-Brown potential you can run
+
+```bash
+python mueller.py
 ```
