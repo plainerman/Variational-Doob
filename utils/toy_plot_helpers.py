@@ -42,6 +42,7 @@ def plot_energy_surface(U, states, xlim, ylim, points=[], trajectories=[], bins=
         plt.scatter(p[0], p[1], marker='*')
 
     for name, pos in states:
-        c = plt.Circle(pos, radius=radius, edgecolor='gray', alpha=alpha, facecolor='white', ls='--', lw=0.7, zorder=100)
+        pos = pos.reshape(2,)
+        c = plt.Circle(pos, radius=radius, edgecolor='gray', alpha=alpha, facecolor='white', ls='--', lw=0.7, zorder=10)
         plt.gca().add_patch(c)
-        plt.gca().annotate(name, xy=pos, ha="center", va="center", fontsize=14, zorder=101)
+        plt.gca().annotate(name, xy=pos, ha="center", va="center", fontsize=14, zorder=11)
