@@ -46,17 +46,19 @@ class FirstOrderSetup(QSetup):
         self.T = T
 
     @staticmethod
-    def dmudt_and_dsigmadt(state_q: TrainState, t: ArrayLike,
-                           params_q: Union[FrozenVariableDict, Dict[str, Any]] = None) -> Tuple[ArrayLike, ArrayLike]:
+    def dmudt_and_dsigmadt(
+            state_q: TrainState,
+            t: ArrayLike, params_q: Union[FrozenVariableDict, Dict[str, Any]] = None
+    ) -> Tuple[ArrayLike, ArrayLike, ArrayLike, ArrayLike, ArrayLike]:
         params = state_q.params if params_q is None else params_q
 
         def _func(_t):
-            _mu, _sigma, _ = state_q.apply_fn(params, _t)
-            return _mu.sum(0).T, _sigma.sum(0).T
+            _mu, _sigma, _w_logits = state_q.apply_fn(params, _t)
+            return (_mu.sum(0).T, _sigma.sum(0).T), (_mu, _sigma, _w_logits)
 
-        _jac = jax.jacrev(_func)
-        _dmudt, _dsigmadt = _jac(t)
-        return _dmudt.squeeze(axis=-1).T, _dsigmadt.squeeze(axis=-1).T
+        _jac = jax.jacrev(_func, has_aux=True)
+        (_dmudt, _dsigmadt), (_mu, _sigma, _w_logits) = _jac(t)
+        return _dmudt.squeeze(axis=-1).T, _dsigmadt.squeeze(axis=-1).T, _mu, _sigma, _w_logits
 
     def construct_loss(self, state_q: TrainState, xi: float, BS: int) -> Callable[
         [Union[FrozenVariableDict, Dict[str, Any]], ArrayLike], ArrayLike]:
@@ -72,9 +74,9 @@ class FirstOrderSetup(QSetup):
 
             def v_t(_eps, _t):
                 """This function is equal to v_t * xi ** 2."""
-                _mu_t, _sigma_t, _w_logits = state_q.apply_fn(params_q, _t)
+                _dmudt, _dsigmadt, _mu_t, _sigma_t, _w_logits = FirstOrderSetup.dmudt_and_dsigmadt(state_q, _t,
+                                                                                                   params_q)
                 _i = jax.random.categorical(key[2], _w_logits, shape=[BS, ])
-                _dmudt, _dsigmadt = FirstOrderSetup.dmudt_and_dsigmadt(state_q, _t, params_q)
 
                 _x = _mu_t[jnp.arange(BS), _i, None] + _sigma_t[jnp.arange(BS), _i, None] * eps
 
@@ -98,8 +100,7 @@ class FirstOrderSetup(QSetup):
         return loss_fn
 
     def u_t(self, state_q: TrainState, t: ArrayLike, x_t: ArrayLike, xi: float, *args, **kwargs) -> ArrayLike:
-        _mu_t, _sigma_t, _w_logits = state_q.apply_fn(state_q.params, t)
-        _dmudt, _dsigmadt = FirstOrderSetup.dmudt_and_dsigmadt(state_q, t)
+        _dmudt, _dsigmadt, _mu_t, _sigma_t, _w_logits = FirstOrderSetup.dmudt_and_dsigmadt(state_q, t)
         _x = x_t[:, None, :]
 
         log_q_i = jax.scipy.stats.norm.logpdf(_x, _mu_t, _sigma_t).sum(-1)
@@ -111,8 +112,7 @@ class FirstOrderSetup(QSetup):
         return _u_t + 0.5 * (xi ** 2) * log_q_t
 
     def u_t_det(self, state_q: TrainState, t: ArrayLike, x_t: ArrayLike, *args, **kwargs) -> ArrayLike:
-        _mu_t, _sigma_t, _w_logits = state_q.apply_fn(state_q.params, t)
-        _dmudt, _dsigmadt = FirstOrderSetup.dmudt_and_dsigmadt(state_q, t)
+        _dmudt, _dsigmadt, _mu_t, _sigma_t, _w_logits = FirstOrderSetup.dmudt_and_dsigmadt(state_q, t)
         _x = x_t[:, None, :]
 
         log_q_i = jax.scipy.stats.norm.logpdf(_x, _mu_t, _sigma_t).sum(-1)
