@@ -40,5 +40,5 @@ def U_mueller_brown(xs, beta=1.0):
 
 double_well = (U_double_well,)
 double_well_hard = (U_double_well_hard,)
-double_well_dual_channel = (U_double_well_dual_channel,)
+double_well_dual_channel = (U_double_well_dual_channel, jnp.array([-0.5, 0]), jnp.array([0.5, 0]))
 mueller_brown = (U_mueller_brown, jnp.array([-0.55828035, 1.44169]), jnp.array([0.62361133, 0.02804632]))

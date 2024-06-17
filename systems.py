@@ -30,6 +30,8 @@ class System:
             U, A, B = potentials.double_well_hard
         elif name == 'double_well_dual_channel':
             U, A, B = potentials.double_well_dual_channel
+            xlim = jnp.array((-1.0, 1.0))
+            ylim = jnp.array((-1.0, 1.0))
         elif name == 'mueller_brown':
             U, A, B = potentials.mueller_brown
             xlim = jnp.array((-1.5, 0.9))
