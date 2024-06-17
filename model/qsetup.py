@@ -19,6 +19,7 @@ class QSetup(ABC):
     """
     system: System
     model_q: nn.Module
+    base_sigma: float
 
     @abstractmethod
     def construct_loss(self, *args, **kwargs) -> Callable:

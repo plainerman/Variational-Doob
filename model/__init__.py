@@ -18,7 +18,7 @@ class WrappedModule(ABC, nn.Module):
         raise NotImplementedError
 
 
-class MLPq(nn.Module):
+class MLP(nn.Module):
     hidden_dims: ArrayLike
 
     @nn.compact

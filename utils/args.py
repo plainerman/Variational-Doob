@@ -1,25 +1,27 @@
 from argparse import ArgumentParser
+import sys
+import yaml
 
 
-def parse_args(parser: ArgumentParser, strict=True):
-    args = parser.parse_args()
-    if args.config is not None:
-        import yaml
-        # load yaml file and override specified args
+def parse_args(parser: ArgumentParser):
+    # args = parser.parse_args()
+    args = sys.argv[1:]
+    conf = args.index('--config')
+    if conf >= 0 and conf + 1 < len(args):
+        config_file = args[conf + 1]
+    else:
+        return parser.parse_args()
 
-        with open(args.config, 'r') as f:
-            config = yaml.safe_load(f)
+    # load yaml file and override specified args
+    with open(config_file, 'r') as f:
+        config = yaml.safe_load(f)
 
-        if config is None:
-            raise ValueError(f"Config file {args.config} is empty")
+    config_args = []
+    for k, v in config.items():
+        args.append(f'--{k}')
+        args.append(str(v))
 
-        parser.set_defaults(**config)
+    if config is None:
+        raise ValueError(f"Config file {config_file} is empty")
 
-        if strict:
-            for key in config.keys():
-                if not hasattr(args, key):
-                    raise ValueError(f"Unknown argument: '{key}' specified in {args.config}")
-
-        args = parser.parse_args()
-
-    return args
+    return parser.parse_args(args=config_args + args)
