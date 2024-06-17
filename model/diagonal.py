@@ -71,12 +71,11 @@ class FirstOrderSetup(QSetup):
             t = self.T * jax.random.uniform(key[0], [BS, 1])
             eps = jax.random.normal(key[1], [BS, 1, ndim])
 
-            w_logits = state_q.apply_fn(params_q, t)[2]
-            i = jax.random.categorical(key[2], w_logits, shape=[BS, ])
-
-            def v_t(_eps, _t, _i, _w_logits):
+            def v_t(_eps, _t):
                 """This function is equal to v_t * xi ** 2."""
-                _mu_t, _sigma_t, _ = state_q.apply_fn(params_q, _t)
+                _mu_t, _sigma_t, _w_logits = state_q.apply_fn(params_q, _t)
+                _i = jax.random.categorical(key[2], _w_logits, shape=[BS, ])
+
                 _dmudt = FirstOrderSetup.dmudt(state_q, _t, params_q)
                 _dsigmadt = FirstOrderSetup.dsigmadt(state_q, _t, params_q)
 
@@ -96,7 +95,7 @@ class FirstOrderSetup(QSetup):
 
                 return u_t - b_t + 0.5 * (xi ** 2) * log_q_t
 
-            loss = 0.5 * ((v_t(eps, t, i, w_logits) / xi) ** 2).sum(-1, keepdims=True)
+            loss = 0.5 * ((v_t(eps, t) / xi) ** 2).sum(-1, keepdims=True)
             return loss.mean()
 
         return loss_fn

@@ -70,7 +70,8 @@ if __name__ == '__main__':
 
         def v_t(_eps, _t):
             u_t = dmudt(_t) + dsigmadt(_t) * _eps
-            _x = mu_t(_t) + sigma_t(_t) * _eps
+            _mu_t, _sigma_t = state_q.apply_fn(params_q, _t)
+            _x = _mu_t + _sigma_t * _eps
             out = (u_t + dUdx_fn(_x)) - 0.5 * (xi ** 2) * _eps / sigma_t(t)
             return out
 

@@ -88,9 +88,10 @@ if __name__ == '__main__':
 
     t = args.T * jnp.linspace(0, 1, args.BS).reshape((-1, 1))
     key, path_key = jax.random.split(key)
-    eps = jax.random.normal(path_key, [args.BS, 2])
-    mu_t, sigma_t, _ = state_q.apply_fn(state_q.params, t)
-    samples = mu_t + sigma_t * eps
+    eps = jax.random.normal(path_key, [args.BS, args.num_gaussians, system.A.shape[-1]])
+    mu_t, sigma_t, w_logits = state_q.apply_fn(state_q.params, t)
+    w = jax.nn.softmax(w_logits)[None, :, None]
+    samples = (w * (mu_t + sigma_t * eps)).sum(axis=1)
 
     # plot_energy_surface()
     # plt.scatter(samples[:, 0], samples[:, 1])
