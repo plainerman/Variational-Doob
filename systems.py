@@ -37,7 +37,7 @@ class System:
         else:
             raise ValueError(f"Unknown system: {name}")
 
-        plot = partial(toy.plot_energy_surface, U=U, states=zip(['A', 'B'], [A, B]), xlim=xlim, ylim=ylim, alpha=1.0)
+        plot = partial(toy.plot_energy_surface, U=U, states=list(zip(['A', 'B'], [A, B])), xlim=xlim, ylim=ylim, alpha=1.0)
         mass = jnp.array([1.0, 1.0])
         return cls(U, A, B, mass, plot)
 

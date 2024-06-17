@@ -2,7 +2,11 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
 
-def plot_energy_surface(U, states, xlim, ylim, points=[], trajectories=[], bins=150, levels=30, alpha=0.7, radius=0.1):
+def plot_energy_surface(U, states, xlim, ylim, points=[], trajectories=[],
+                        title=None, bins=150, levels=30, alpha=0.7, radius=0.1):
+    if title:
+        plt.title(title)
+
     x, y = jnp.linspace(xlim[0], xlim[1], bins), jnp.linspace(ylim[0], ylim[1], bins)
     x, y = jnp.meshgrid(x, y, indexing='ij')
     z = U(jnp.stack([x, y], -1).reshape(-1, 2)).reshape([bins, bins])
@@ -42,7 +46,7 @@ def plot_energy_surface(U, states, xlim, ylim, points=[], trajectories=[], bins=
         plt.scatter(p[0], p[1], marker='*')
 
     for name, pos in states:
-        pos = pos.reshape(2,)
+        pos = pos.reshape(2, )
         c = plt.Circle(pos, radius=radius, edgecolor='gray', alpha=alpha, facecolor='white', ls='--', lw=0.7, zorder=10)
         plt.gca().add_patch(c)
         plt.gca().annotate(name, xy=pos, ha="center", va="center", fontsize=14, zorder=11)

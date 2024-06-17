@@ -48,7 +48,7 @@ def interpolate(points, steps):
     return interpolation
 
 
-plot_energy_surface = partial(toy.plot_energy_surface, U=U, states=zip(['A', 'B'], minima_points),
+plot_energy_surface = partial(toy.plot_energy_surface, U=U, states=list(zip(['A', 'B'], minima_points)),
                               xlim=jnp.array((-1.5, 0.9)), ylim=jnp.array((-0.5, 1.7)), alpha=1.0)
 
 if __name__ == '__main__':

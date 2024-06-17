@@ -44,6 +44,7 @@ class QSetup(ABC):
 
         for i in trange(N):
             for j in range(0, num_paths, BS):
+                # If the BS does not divide the number of paths, we need to pad the last batch
                 if j + BS > num_paths:
                     j_end = num_paths
                     cur_x_t = jnp.pad(x_t[j:, i], pad_width=((0, BS - (num_paths - j)), (0, 0)))
@@ -56,6 +57,7 @@ class QSetup(ABC):
                 if key is None:
                     noise = 0
                 else:
+                    # For stochastic sampling we compute the noise
                     key, iter_key = jax.random.split(key)
                     noise = xi * jax.random.normal(iter_key, shape=(BS, ndim))
 

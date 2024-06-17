@@ -1,8 +1,13 @@
 from argparse import ArgumentParser
-
 from utils.args import parse_args
 from systems import System
 import matplotlib.pyplot as plt
+import jax.numpy as jnp
+import jax
+from flax.training import train_state
+import optax
+import model.diagonal as diagonal
+from model.train import train
 
 parser = ArgumentParser()
 parser.add_argument('--out', type=str, default=None, help="Specify a path where the data will be stored.")
@@ -59,18 +64,9 @@ if __name__ == '__main__':
         raise NotImplementedError
         # system = System.from_forcefield(args.start, args.target)
 
-    import jax.numpy as jnp
-    import jax
-    from tqdm import trange
-    from flax.training import train_state
-    import optax
-    import model.diagonal as diagonal
-    from model.train import train
-    from model import MLPq
-
-    N = int(args.T / args.dt)
-
     # You can play around with any model here
+    # The chosen setup will append a final layer so that the output is mu, sigma, and weights
+    from model import MLPq
     model = MLPq([128, 128, 128])
 
     # TODO: parameterize mixtures, weights, and base_sigma
@@ -113,3 +109,12 @@ if __name__ == '__main__':
 
     key, path_key = jax.random.split(key)
     x_t_stoch = setup.sample_paths(state_q, x_0, args.dt, args.T, args.BS, args.xi, path_key)
+
+    if system.plot:
+        system.plot(title='Deterministic Paths', trajectories=x_t_det)
+        plt.show()
+        plt.clf()
+
+        system.plot(title='Stochastic Paths', trajectories=x_t_stoch)
+        plt.show()
+        plt.clf()
