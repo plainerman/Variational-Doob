@@ -86,7 +86,7 @@ if __name__ == '__main__':
     loss_fn = setup.construct_loss(state_q, args.xi, args.BS)
 
     key, train_key = jax.random.split(key)
-    state_q, loss_plot = train(loss_fn, state_q, args.epochs, train_key)
+    state_q, loss_plot = train(state_q, loss_fn, args.epochs, train_key)
     print("Number of potential evaluations", args.BS * args.epochs)
 
     plt.plot(loss_plot)
@@ -97,55 +97,19 @@ if __name__ == '__main__':
     eps = jax.random.normal(path_key, [args.BS, 2])
     mu_t, sigma_t, _ = state_q.apply_fn(state_q.params, t)
     samples = mu_t + sigma_t * eps
+
     # plot_energy_surface()
     # plt.scatter(samples[:, 0], samples[:, 1])
     # plt.scatter(A[0, 0], A[0, 1], color='red')
     # plt.scatter(B[0, 0], B[0, 1], color='orange')
     # plt.show()
 
-    mu_t = lambda _t: state_q.apply_fn(state_q.params, _t)[0]
-    sigma_t = lambda _t: state_q.apply_fn(state_q.params, _t)[1]
+    key, init_key = jax.random.split(key)
+    x_0 = jnp.ones((args.num_paths, system.A.shape[0])) * system.A
+    eps = jax.random.normal(key, shape=x_0.shape)
+    x_0 += base_sigma * eps
 
+    x_t_det = setup.sample_paths(state_q, x_0, args.dt, args.T, args.BS, None, None)
 
-    def dmudt(_t):
-        _dmudt = jax.jacrev(lambda _t: mu_t(_t).sum(0), argnums=0)
-        return _dmudt(_t).squeeze().T
-
-
-    def dsigmadt(_t):
-        _dsigmadt = jax.jacrev(lambda _t: sigma_t(_t).sum(0))
-        return _dsigmadt(_t).squeeze().T
-
-
-    u_t = jax.jit(lambda _t, _x: dmudt(_t) + dsigmadt(_t) / sigma_t(_t) * (_x - mu_t(_t)))
-
-    key, loc_key = jax.random.split(key)
-    x_t = jnp.ones((args.BS, N + 1, 2)) * system.A[None:, ]
-    eps = jax.random.normal(key, shape=(args.BS, 2))
-    x_t = x_t.at[:, 0, :].set(x_t[:, 0, :] + sigma_t(jnp.zeros((args.BS, 1))) * eps)
-    t = jnp.zeros((args.BS, 1))
-    for i in trange(N):
-        dx = args.dt * u_t(t, x_t[:, i, :])
-        x_t = x_t.at[:, i + 1, :].set(x_t[:, i, :] + dx)
-        t += args.dt
-
-    x_t_det = x_t.copy()
-
-    u_t = jax.jit(
-        lambda _t, _x: dmudt(_t) + (dsigmadt(_t) / sigma_t(_t) - 0.5 * (args.xi / sigma_t(_t)) ** 2) * (_x - mu_t(_t)))
-
-    # TODO: find a better way then resetting BS
-    BS = args.num_paths
-    key, loc_key = jax.random.split(key)
-    x_t = jnp.ones((BS, N + 1, 2)) * system.A[None, :]
-    eps = jax.random.normal(key, shape=(BS, 2))
-    x_t = x_t.at[:, 0, :].set(x_t[:, 0, :] + sigma_t(jnp.zeros((BS, 1))) * eps)
-    t = jnp.zeros((BS, 1))
-    for i in trange(N):
-        key, loc_key = jax.random.split(key)
-        eps = jax.random.normal(key, shape=(BS, 2))
-        dx = args.dt * u_t(t, x_t[:, i, :]) + jnp.sqrt(args.dt) * args.xi * eps
-        x_t = x_t.at[:, i + 1, :].set(x_t[:, i, :] + dx)
-        t += args.dt
-
-    x_t_stoch = x_t.copy()
+    key, path_key = jax.random.split(key)
+    x_t_stoch = setup.sample_paths(state_q, x_0, args.dt, args.T, args.BS, args.xi, path_key)

@@ -5,7 +5,7 @@ from jax.typing import ArrayLike
 from tqdm import trange
 
 
-def train(loss_fn: Callable, state_q: TrainState, epochs: int, key: ArrayLike) -> Tuple[TrainState, list[float]]:
+def train(state_q: TrainState, loss_fn: Callable, epochs: int, key: ArrayLike) -> Tuple[TrainState, list[float]]:
     @jax.jit
     def train_step(_state_q: TrainState, _key: ArrayLike) -> (TrainState, float):
         grad_fn = jax.value_and_grad(loss_fn, argnums=0)

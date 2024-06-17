@@ -6,7 +6,7 @@ import jax
 from flax.typing import FrozenVariableDict
 from jax.typing import ArrayLike
 from model import WrappedModule
-from model.setup import TrainSetup
+from model.qsetup import QSetup
 from systems import System
 
 
@@ -31,8 +31,7 @@ class DiagonalWrapper(WrappedModule):
         return mu, sigma, w_logits
 
 
-class FirstOrderSetup(TrainSetup):
-
+class FirstOrderSetup(QSetup):
     def __init__(self, system: System, model: nn.module, T: float, num_mixtures: int, trainable_weights: bool,
                  base_sigma: float):
         model_q = DiagonalWrapper(model, T, system.A, system.B, num_mixtures, trainable_weights, base_sigma)
@@ -70,3 +69,33 @@ class FirstOrderSetup(TrainSetup):
             return loss.mean()
 
         return loss_fn
+
+    def u_t(self, state_q: TrainState, t: ArrayLike, x_t: ArrayLike, xi: float, *args, **kwargs) -> ArrayLike:
+        print("WARNING: This is just a preliminary implementation of u_t_det")
+        mu_t = lambda _t: state_q.apply_fn(state_q.params, _t)[0]
+        sigma_t = lambda _t: state_q.apply_fn(state_q.params, _t)[1]
+
+        def dmudt(_t):
+            _dmudt = jax.jacrev(lambda _t: mu_t(_t).sum(0), argnums=0)
+            return _dmudt(_t).squeeze().T
+
+        def dsigmadt(_t):
+            _dsigmadt = jax.jacrev(lambda _t: sigma_t(_t).sum(0))
+            return _dsigmadt(_t).squeeze().T
+
+        return dmudt(t) + (dsigmadt(t) / sigma_t(t) - 0.5 * (xi / sigma_t(t)) ** 2) * (x_t - mu_t(t))
+
+    def u_t_det(self, state_q: TrainState, t: ArrayLike, x_t: ArrayLike, *args, **kwargs) -> ArrayLike:
+        print("WARNING: This is just a preliminary implementation of u_t_det")
+        mu_t = lambda _t: state_q.apply_fn(state_q.params, _t)[0]
+        sigma_t = lambda _t: state_q.apply_fn(state_q.params, _t)[1]
+
+        def dmudt(_t):
+            _dmudt = jax.jacrev(lambda _t: mu_t(_t).sum(0), argnums=0)
+            return _dmudt(_t).squeeze().T
+
+        def dsigmadt(_t):
+            _dsigmadt = jax.jacrev(lambda _t: sigma_t(_t).sum(0))
+            return _dsigmadt(_t).squeeze().T
+
+        return dmudt(t) + dsigmadt(t) / sigma_t(t) * (x_t - mu_t(t))
