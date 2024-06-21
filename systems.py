@@ -1,5 +1,4 @@
 from functools import partial
-from dmff import Hamiltonian, NeighborList
 from utils.plot import toy_plot_energy_surface
 import potentials
 import jax
@@ -50,6 +49,9 @@ class System:
 
     @classmethod
     def from_pdb(cls, A: str, B: str, forcefield: [str], cv: Optional[str]) -> Self:
+        print("WARNING!!!! This changes jax to double precision")
+        from dmff import Hamiltonian, NeighborList
+
         A_pdb, B_pdb = app.PDBFile(A), app.PDBFile(B)
         assert_same_molecule(A_pdb, B_pdb)
 
