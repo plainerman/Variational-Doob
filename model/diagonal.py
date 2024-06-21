@@ -19,7 +19,6 @@ class DiagonalWrapper(WrappedModule):
 
     @nn.compact
     def _post_process(self, t: ArrayLike, h: ArrayLike):
-        print('WARNING: Gaussian Mixture Model not implemented yet')
         ndim = self.A.shape[0]
         h = nn.Dense(2 * ndim * self.num_mixtures)(h)
 
@@ -60,12 +59,10 @@ class FirstOrderSetup(QSetup):
         (_dmudt, _dsigmadt), (_mu, _sigma, _w_logits) = _jac(t)
         return _dmudt.squeeze(axis=-1).T, _dsigmadt.squeeze(axis=-1).T, _mu, _sigma, _w_logits
 
-    def construct_loss(self, state_q: TrainState, xi: float, BS: int) -> Callable[
+    def construct_loss(self, state_q: TrainState, xi: float, gamma: float, BS: int) -> Callable[
         [Union[FrozenVariableDict, Dict[str, Any]], ArrayLike], ArrayLike]:
 
         def loss_fn(params_q: Union[FrozenVariableDict, Dict[str, Any]], key: ArrayLike) -> ArrayLike:
-            gamma = 1.0
-            print('WARNING: gamma is set to 1 for now')
             ndim = self.system.A.shape[-1]
             key = jax.random.split(key)
 

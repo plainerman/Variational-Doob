@@ -3,6 +3,7 @@ save_dir: ./out/toy/mueller_single_gaussian
 test_system: mueller_brown
 T: 275e-4
 xi: 5.0
+gamma: 1.0
 
 num_gaussians: 1
 trainable_weights: False

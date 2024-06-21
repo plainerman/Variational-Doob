@@ -24,6 +24,7 @@ parser.add_argument('--target', type=str, help="Path to pdb file with the target
 parser.add_argument('--T', type=float, required=True,
                     help="Transition time in the base unit of the system. For molecular simulations, this is in picoseconds.")
 parser.add_argument('--xi', type=float, required=True)
+parser.add_argument('--gamma', type=float, required=True)
 
 # parameters of Q
 parser.add_argument('--num_gaussians', type=int, default=1, help="Number of gaussians in the mixture model.")
@@ -77,7 +78,7 @@ if __name__ == '__main__':
 
     optimizer_q = optax.adam(learning_rate=args.lr)
     state_q = train_state.TrainState.create(apply_fn=setup.model_q.apply, params=params_q, tx=optimizer_q)
-    loss_fn = setup.construct_loss(state_q, args.xi, args.BS)
+    loss_fn = setup.construct_loss(state_q, args.xi, args.gamma, args.BS)
 
     key, train_key = jax.random.split(key)
     state_q, loss_plot = train(state_q, loss_fn, args.epochs, train_key)

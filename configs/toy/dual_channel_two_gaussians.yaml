@@ -3,6 +3,7 @@ save_dir: ./out/toy/dual_channel_two_gaussians
 test_system: double_well_dual_channel
 T: 1.0
 xi: 0.1
+gamma: 1.0
 
 num_gaussians: 2
 trainable_weights: False
