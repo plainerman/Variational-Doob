@@ -10,6 +10,7 @@ import training.qsetup as qsetup
 from training.train import train
 from utils.plot import show_or_save_fig
 import os
+import sys
 
 parser = ArgumentParser()
 parser.add_argument('--save_dir', type=str, default=None, help="Specify a path where the data will be stored.")
@@ -20,13 +21,18 @@ parser.add_argument('--test_system', type=str,
                     choices=['double_well', 'double_well_hard', 'double_well_dual_channel', 'mueller_brown'])
 parser.add_argument('--start', type=str, help="Path to pdb file with the start structure A")
 parser.add_argument('--target', type=str, help="Path to pdb file with the target structure B")
-parser.add_argument('--ode', type=str, choices=['first_order', 'second_order'], required=True)
-parser.add_argument('--parameterization', type=str, choices=['diagonal', 'low_rank'], required=True)
+parser.add_argument('--forcefield', type=str, nargs='+', default=['amber14/protein.ff14SB.xml', 'amber14/tip3p.xml'],
+                    help="Forcefield for the system")
 
 parser.add_argument('--T', type=float, required=True,
                     help="Transition time in the base unit of the system. For molecular simulations, this is in picoseconds.")
-parser.add_argument('--xi', type=float, required=True)
+parser.add_argument('--xi', type=float)
+parser.add_argument('--temperature', type=float,
+                    help="The temperature of the system in Kelvin. Either specify this or xi.")
 parser.add_argument('--gamma', type=float, required=True)
+
+parser.add_argument('--ode', type=str, choices=['first_order', 'second_order'], required=True)
+parser.add_argument('--parameterization', type=str, choices=['diagonal', 'low_rank'], required=True)
 
 # parameters of Q
 parser.add_argument('--num_gaussians', type=int, default=1, help="Number of gaussians in the mixture model.")
@@ -45,11 +51,17 @@ parser.add_argument('--seed', type=int, default=1, help="The seed that will be u
 parser.add_argument('--num_paths', type=int, default=1000, help="The number of paths that will be generated.")
 parser.add_argument('--dt', type=float, required=True)
 
-if __name__ == '__main__':
+
+def main():
+    # TODO: force clipping
+    # TODO: temperature
     args = parse_args(parser)
     assert args.test_system or args.start and args.target, "Either specify a test system or provide start and target structures"
     assert not (
             args.test_system and args.start and args.target), "Specify either a test system or provide start and target structures, not both"
+
+    assert args.xi or args.temperature, "Either specify xi or temperature"
+    assert not (args.xi and args.temperature), "Specify either xi or temperature, not both"
 
     print(f'Config: {args}')
     os.makedirs(args.save_dir, exist_ok=True)
@@ -57,8 +69,13 @@ if __name__ == '__main__':
     if args.test_system:
         system = System.from_name(args.test_system)
     else:
-        raise NotImplementedError
-        # system = System.from_forcefield(args.start, args.target)
+        system = System.from_pdb(args.start, args.target, args.forcefield)
+
+    if args.xi:
+        xi = args.xi
+    else:
+        kbT = 1.380649 * 6.02214076 * 1e-3 * args.temperature
+        xi = jnp.sqrt(2 * kbT * args.gamma / system.mass)
 
     # TODO: parameterize neural network?
     # TODO: if we find a nice way, maybe this can also include base_sigma
@@ -75,7 +92,7 @@ if __name__ == '__main__':
 
     optimizer_q = optax.adam(learning_rate=args.lr)
     state_q = train_state.TrainState.create(apply_fn=setup.model_q.apply, params=params_q, tx=optimizer_q)
-    loss_fn = setup.construct_loss(state_q, args.xi, args.gamma, args.BS)
+    loss_fn = setup.construct_loss(state_q, xi, args.gamma, args.BS)
 
     key, train_key = jax.random.split(key)
     state_q, loss_plot = train(state_q, loss_fn, args.epochs, train_key)
@@ -111,8 +128,16 @@ if __name__ == '__main__':
         show_or_save_fig(args.save_dir, 'paths_deterministic.pdf')
 
     key, path_key = jax.random.split(key)
-    x_t_stoch = setup.sample_paths(state_q, x_0, args.dt, args.T, args.BS, args.xi, path_key)
+    x_t_stoch = setup.sample_paths(state_q, x_0, args.dt, args.T, args.BS, xi, path_key)
 
     if system.plot:
         system.plot(title='Stochastic Paths', trajectories=x_t_stoch[:, :, :system.A.shape[0]])
         show_or_save_fig(args.save_dir, 'paths_stochastic.pdf')
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except AssertionError as e:
+        parser.print_usage(file=sys.stderr)
+        print(e, file=sys.stderr)

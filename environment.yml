@@ -9,13 +9,12 @@ dependencies:
   - mdtraj=1.9.8
   - tqdm=4.65.0
   - matplotlib=3.8.4
-  - scipy=1.13.1
+  - scipy=1.12.0
   - scikit-image=0.23.2
   - ParmEd=4.2.2
   - openpathsampling=1.6.1
+  - jax=0.4.23
+  - flax=0.8.3
   - pip:
     - dmff @ git+https://github.com/deepmodeling/DMFF@v1.0.0
     - rdkit==2023.3.3
-    - jax==0.4.26
-    - jaxlib==0.4.26
-    - flax==0.8.3

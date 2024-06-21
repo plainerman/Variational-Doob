@@ -1,4 +1,8 @@
 from functools import partial
+
+import openmm.app
+from dmff import Hamiltonian, NeighborList
+
 import utils.toy_plot_helpers as toy
 import potentials
 import jax
@@ -8,6 +12,8 @@ from typing import Callable
 import openmm.app as app
 import openmm.unit as unit
 from typing import Self
+from utils.pdb import assert_same_molecule
+from utils.rmsd import kabsch_align
 
 
 class System:
@@ -39,25 +45,44 @@ class System:
         else:
             raise ValueError(f"Unknown system: {name}")
 
-        plot = partial(toy.plot_energy_surface, U=U, states=list(zip(['A', 'B'], [A, B])), xlim=xlim, ylim=ylim, alpha=1.0)
+        plot = partial(toy.plot_energy_surface, U=U, states=list(zip(['A', 'B'], [A, B])), xlim=xlim, ylim=ylim,
+                       alpha=1.0)
         mass = jnp.array([1.0, 1.0])
         return cls(U, A, B, mass, plot)
 
     @classmethod
-    def from_pdb(cls, A: str, B: str, CV: Callable[[ArrayLike], ArrayLike] = None) -> Self:
-        # TODO: how to handle alanine with plotting? CV? plot function?
-        A = app.PDBFile(A)
-        B = app.PDBFile(B)
+    def from_pdb(cls, A: str, B: str, forcefield: [str]) -> Self:
+        A_pdb, B_pdb = app.PDBFile(A), app.PDBFile(B)
+        assert_same_molecule(A_pdb, B_pdb)
 
-        # TODO: I don't think that this will work
-        assert A.topology == B.topology, "Topologies of A and B must match"
-
-        # kabsch align A and B
-
-        mass = [a.element.mass.value_in_unit(unit.dalton) for a in A.topology.atoms()]
+        mass = [a.element.mass.value_in_unit(unit.dalton) for a in A_pdb.topology.atoms()]
         mass = jnp.broadcast_to(jnp.array(mass).reshape(-1, 1), (len(mass), 3)).reshape(-1)
 
-        # TODO: remove if previous line works
-        # assert [a.element.mass.value_in_unit(unit.dalton) for a in A.topology.atoms()] ==  [a.element.mass.value_in_unit(unit.dalton) for a in B.topology.atoms()]
+        A = jnp.array(A_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer))
+        B = jnp.array(B_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer))
+        A, B = kabsch_align(A, B)
+        A, B = A.reshape(-1), B.reshape(-1)
 
-        raise NotImplementedError
+        # Initialize the potential energy with amber forcefields
+        ff = Hamiltonian(*forcefield)
+        potentials = ff.createPotential(A_pdb.topology,
+                                        nonbondedMethod=app.NoCutoff,
+                                        nonbondedCutoff=1.0 * unit.nanometers,
+                                        constraints=None,
+                                        ewaldErrorTolerance=0.0005)
+
+        # Create a box used when calling
+        box = jnp.array([[50.0, 0.0, 0.0], [0.0, 50.0, 0.0], [0.0, 0.0, 50.0]])
+        nbList = NeighborList(box, 4.0, potentials.meta["cov_map"])
+        nbList.allocate(A_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer))
+
+        _U = potentials.getPotentialFunc()
+
+        @jax.jit
+        @jax.vmap
+        def U(_x):
+            return _U(_x.reshape(22, 3), box, nbList.pairs, ff.paramset.parameters).sum()
+
+        # TODO: plotting
+
+        return cls(U, A, B, mass, None)

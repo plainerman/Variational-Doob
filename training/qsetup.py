@@ -71,7 +71,7 @@ class QSetup(ABC):
         return x_t
 
     @abstractmethod
-    def u_t(self, state_q: TrainState, t: ArrayLike, x_t: ArrayLike, xi: float, *args, **kwargs) -> ArrayLike:
+    def u_t(self, state_q: TrainState, t: ArrayLike, x_t: ArrayLike, xi: ArrayLike, *args, **kwargs) -> ArrayLike:
         raise NotImplementedError
 
     @property
