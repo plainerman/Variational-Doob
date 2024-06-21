@@ -35,10 +35,10 @@ class QSetup(ABC):
 
         num_paths = x_0.shape[0]
         ndim = x_0.shape[1]
-        x_t = jnp.ones((num_paths, N, ndim))
+        x_t = jnp.zeros((num_paths, N, ndim), dtype=jnp.float32)
         x_t = x_t.at[:, 0, :].set(x_0)
 
-        t = jnp.zeros((BS, 1))
+        t = jnp.zeros((BS, 1), dtype=jnp.float32)
         if key is None:
             u = jax.jit(lambda _t, _x: self.u_t(state_q, _t, _x, 0, *args, **kwargs))
         else:

@@ -90,7 +90,7 @@ def main():
 
     key = jax.random.PRNGKey(args.seed)
     key, init_key = jax.random.split(key)
-    params_q = setup.model_q.init(init_key, jnp.zeros([args.BS, 1]))
+    params_q = setup.model_q.init(init_key, jnp.zeros([args.BS, 1], dtype=jnp.float32))
 
     optimizer_q = optax.adam(learning_rate=args.lr)
     state_q = train_state.TrainState.create(apply_fn=setup.model_q.apply, params=params_q, tx=optimizer_q)
@@ -104,7 +104,7 @@ def main():
     show_or_save_fig(args.save_dir, 'loss_plot.pdf')
 
     # TODO: how to plot this nicely?
-    t = args.T * jnp.linspace(0, 1, args.BS).reshape((-1, 1))
+    t = args.T * jnp.linspace(0, 1, args.BS, dtype=jnp.float32).reshape((-1, 1))
     key, path_key = jax.random.split(key)
     eps = jax.random.normal(path_key, [args.BS, args.num_gaussians, setup.A.shape[-1]])
     mu_t, sigma_t, w_logits = state_q.apply_fn(state_q.params, t)
@@ -118,7 +118,7 @@ def main():
     # plt.show()
 
     key, init_key = jax.random.split(key)
-    x_0 = jnp.ones((args.num_paths, setup.A.shape[0])) * setup.A
+    x_0 = jnp.ones((args.num_paths, setup.A.shape[0]), dtype=jnp.float32) * setup.A
     eps = jax.random.normal(key, shape=x_0.shape)
     x_0 += args.base_sigma * eps
 

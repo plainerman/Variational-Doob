@@ -10,7 +10,7 @@ import openmm.unit as unit
 from typing import Self
 from utils.pdb import assert_same_molecule
 from utils.rmsd import kabsch_align
-
+from dmff import Hamiltonian, NeighborList  # This sets jax to use 64-bit precision
 
 class System:
     def __init__(self, U: Callable[[ArrayLike], ArrayLike], A: ArrayLike, B: ArrayLike, mass: ArrayLike, plot):
@@ -49,17 +49,14 @@ class System:
 
     @classmethod
     def from_pdb(cls, A: str, B: str, forcefield: [str], cv: Optional[str]) -> Self:
-        print("WARNING!!!! This changes jax to double precision")
-        from dmff import Hamiltonian, NeighborList
-
         A_pdb, B_pdb = app.PDBFile(A), app.PDBFile(B)
         assert_same_molecule(A_pdb, B_pdb)
 
         mass = [a.element.mass.value_in_unit(unit.dalton) for a in A_pdb.topology.atoms()]
-        mass = jnp.broadcast_to(jnp.array(mass).reshape(-1, 1), (len(mass), 3)).reshape(-1)
+        mass = jnp.broadcast_to(jnp.array(mass, dtype=jnp.float32).reshape(-1, 1), (len(mass), 3)).reshape(-1)
 
-        A = jnp.array(A_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer))
-        B = jnp.array(B_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer))
+        A = jnp.array(A_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer), dtype=jnp.float32)
+        B = jnp.array(B_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer), dtype=jnp.float32)
         A, B = kabsch_align(A, B)
         A, B = A.reshape(-1), B.reshape(-1)
 

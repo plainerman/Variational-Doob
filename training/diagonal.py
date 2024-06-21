@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from jax.typing import ArrayLike
 from flax import linen as nn
 import jax.numpy as jnp
-from typing import Union, Dict, Any, Callable, Tuple
+from typing import Union, Dict, Any, Callable, Tuple, Optional
 from flax.training.train_state import TrainState
 import jax
 from flax.typing import FrozenVariableDict
@@ -60,8 +60,8 @@ class DiagonalSetup(QSetup, ABC):
             ndim = self.model_q.A.shape[-1]
             key = jax.random.split(key)
 
-            t = self.T * jax.random.uniform(key[0], [BS, 1])
-            eps = jax.random.normal(key[1], [BS, 1, ndim])
+            t = self.T * jax.random.uniform(key[0], [BS, 1], dtype=jnp.float32)
+            eps = jax.random.normal(key[1], [BS, 1, ndim], dtype=jnp.float32)
 
             def v_t(_eps, _t):
                 """This function is equal to v_t * xi ** 2."""
