@@ -16,6 +16,9 @@ def parse_args(parser: ArgumentParser):
     with open(config_file, 'r') as f:
         config = yaml.safe_load(f)
 
+    if config is None:
+        raise ValueError(f"Config file {config_file} is empty")
+
     cli_args = {}
     # convert args to dictionary
     i = 0
@@ -30,10 +33,7 @@ def parse_args(parser: ArgumentParser):
 
     config_args = []
     for k, v in config.items():
-        args.append(f'--{k}')
-        args.append(str(v))
-
-    if config is None:
-        raise ValueError(f"Config file {config_file} is empty")
+        config_args.append(f'--{k}')
+        config_args.append(str(v))
 
     return parser.parse_args(args=config_args)
