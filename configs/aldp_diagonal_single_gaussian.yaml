@@ -2,6 +2,7 @@ save_dir: ./out/aldp_diagonal_single_gaussian
 
 start: ./files/AD_A.pdb
 target: ./files/AD_B.pdb
+cv: phi_psi
 
 ode: second_order
 parameterization: diagonal

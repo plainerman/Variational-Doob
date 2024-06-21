@@ -23,6 +23,8 @@ parser.add_argument('--start', type=str, help="Path to pdb file with the start s
 parser.add_argument('--target', type=str, help="Path to pdb file with the target structure B")
 parser.add_argument('--forcefield', type=str, nargs='+', default=['amber14/protein.ff14SB.xml', 'amber14/tip3p.xml'],
                     help="Forcefield for the system")
+parser.add_argument('--cv', type=str, choices=['phi_psi'],
+                    help="Collective variable used for the system. Needed to plot the energy surface of non-test systems.")
 
 parser.add_argument('--T', type=float, required=True,
                     help="Transition time in the base unit of the system. For molecular simulations, this is in picoseconds.")
@@ -69,7 +71,7 @@ def main():
     if args.test_system:
         system = System.from_name(args.test_system)
     else:
-        system = System.from_pdb(args.start, args.target, args.forcefield)
+        system = System.from_pdb(args.start, args.target, args.forcefield, args.cv)
 
     if args.xi:
         xi = args.xi

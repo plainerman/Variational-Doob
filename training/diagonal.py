@@ -1,13 +1,12 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-
+from jax.typing import ArrayLike
 from flax import linen as nn
 import jax.numpy as jnp
 from typing import Union, Dict, Any, Callable, Tuple
 from flax.training.train_state import TrainState
 import jax
 from flax.typing import FrozenVariableDict
-from jax.typing import ArrayLike
 from model.utils import WrappedModule
 from training.qsetup import QSetup
 from systems import System
@@ -134,7 +133,7 @@ class SecondOrderSetup(DiagonalSetup):
     def _xi_to_second_order(self, xi: ArrayLike) -> ArrayLike:
         if xi.shape == self.model_q.A.shape:
             return xi
-        
+
         xi_velocity = jnp.ones_like(self.system.A) * xi
         xi_pos = jnp.zeros_like(xi_velocity) + 1e-4
 

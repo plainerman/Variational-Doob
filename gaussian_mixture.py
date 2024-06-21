@@ -1,5 +1,5 @@
 from functools import partial
-import utils.toy_plot_helpers as toy
+from utils.plot import toy_plot_energy_surface
 from flax import linen as nn
 from flax.training import train_state
 import optax
@@ -22,7 +22,7 @@ def U(xs, beta=1.0):
 
 dUdx_fn = jax.jit(jax.grad(lambda _x: U(_x).sum()))
 
-plot_energy_surface = partial(toy.plot_energy_surface, U, [], jnp.array((-1, 1)), jnp.array((-1, 1)), levels=20)
+plot_energy_surface = partial(toy_plot_energy_surface, U, [], jnp.array((-1, 1)), jnp.array((-1, 1)), levels=20)
 
 
 def create_mlp_q(A, B, T, num_mixtures):
@@ -234,7 +234,8 @@ if __name__ == '__main__':
     plt.show()
 
     plot_energy_surface()
-    plt.scatter(_mu_t_mixture[:, :, 0], _mu_t_mixture[:, :, 1], c=_sigma_t_mixture, vmin=vmin, vmax=vmax, rasterized=True)
+    plt.scatter(_mu_t_mixture[:, :, 0], _mu_t_mixture[:, :, 1], c=_sigma_t_mixture, vmin=vmin, vmax=vmax,
+                rasterized=True)
     plt.colorbar(label=r'$\sigma$')
     plt.savefig(f'{savedir}/toy-gaussian-mixture-mu.pdf', bbox_inches='tight')
     plt.show()

@@ -357,7 +357,7 @@ if __name__ == '__main__':
 
     path_hist = PeriodicPathHistogram()
     for i, path in tqdm(enumerate(paths), desc='Adding paths to histogram', total=len(paths)):
-        path_hist.add_path(np.array(phis_psis(path)))
+        path_hist.add_path(jnp.array(path))
 
     plt.title(f"{human_format(len(paths))} paths @ {temp} K, dt = {human_format(dt)}s")
     path_hist.plot(cmin=0.01)

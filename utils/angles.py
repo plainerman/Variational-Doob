@@ -2,6 +2,7 @@ import jax.numpy as jnp
 import jax
 from mdtraj.geometry import indices_phi, indices_psi
 
+
 @jax.jit
 def dihedral(p):
     """http://stackoverflow.com/q/20305272/1128289"""

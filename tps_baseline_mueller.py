@@ -7,10 +7,10 @@ import os
 import matplotlib.pyplot as plt
 from tps import first_order as tps1
 import numpy as np
-import utils.toy_plot_helpers as toy
+from utils.plot import toy_plot_energy_surface
 
 minima_points = jnp.array([[-0.55828035, 1.44169],
-                           #[-0.05004308, 0.46666032],
+                           # [-0.05004308, 0.46666032],
                            [0.62361133, 0.02804632]])
 A, B = minima_points[None, 0], minima_points[None, 2]
 
@@ -48,7 +48,7 @@ def interpolate(points, steps):
     return interpolation
 
 
-plot_energy_surface = partial(toy.plot_energy_surface, U=U, states=list(zip(['A', 'B'], minima_points)),
+plot_energy_surface = partial(toy_plot_energy_surface, U=U, states=list(zip(['A', 'B'], minima_points)),
                               xlim=jnp.array((-1.5, 0.9)), ylim=jnp.array((-0.5, 1.7)), alpha=1.0)
 
 if __name__ == '__main__':
@@ -65,6 +65,7 @@ if __name__ == '__main__':
     T = 275e-4
     N = 0 if variable else int(T / dt)
     initial_trajectory = [t.reshape(1, 2) for t in interpolate(minima_points, 100 if variable else N)]
+
 
     @jax.jit
     def step(_x, _key):

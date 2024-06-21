@@ -1,14 +1,11 @@
 from functools import partial
-
-import openmm.app
 from dmff import Hamiltonian, NeighborList
-
-import utils.toy_plot_helpers as toy
+from utils.plot import toy_plot_energy_surface
 import potentials
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
-from typing import Callable
+from typing import Callable, Optional
 import openmm.app as app
 import openmm.unit as unit
 from typing import Self
@@ -45,13 +42,14 @@ class System:
         else:
             raise ValueError(f"Unknown system: {name}")
 
-        plot = partial(toy.plot_energy_surface, U=U, states=list(zip(['A', 'B'], [A, B])), xlim=xlim, ylim=ylim,
-                       alpha=1.0)
+        plot = partial(toy_plot_energy_surface,
+                       U=U, states=list(zip(['A', 'B'], [A, B])), xlim=xlim, ylim=ylim, alpha=1.0
+                       )
         mass = jnp.array([1.0, 1.0])
         return cls(U, A, B, mass, plot)
 
     @classmethod
-    def from_pdb(cls, A: str, B: str, forcefield: [str]) -> Self:
+    def from_pdb(cls, A: str, B: str, forcefield: [str], cv: Optional[str]) -> Self:
         A_pdb, B_pdb = app.PDBFile(A), app.PDBFile(B)
         assert_same_molecule(A_pdb, B_pdb)
 
@@ -83,6 +81,11 @@ class System:
         def U(_x):
             return _U(_x.reshape(22, 3), box, nbList.pairs, ff.paramset.parameters).sum()
 
-        # TODO: plotting
+        if cv is None:
+            plot = None
+        elif cv == 'phi_psi':
+            raise NotImplementedError
+        else:
+            raise ValueError(f"Unknown cv: {cv}")
 
         return cls(U, A, B, mass, None)
