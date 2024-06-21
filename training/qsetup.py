@@ -21,7 +21,6 @@ class QSetup(ABC):
     """
     system: System
     model_q: nn.Module
-    base_sigma: float
 
     @abstractmethod
     def construct_loss(self, *args, **kwargs) -> Callable:
@@ -41,7 +40,7 @@ class QSetup(ABC):
 
         t = jnp.zeros((BS, 1))
         if key is None:
-            u = jax.jit(lambda _t, _x: self.u_t_det(state_q, _t, _x, *args, **kwargs))
+            u = jax.jit(lambda _t, _x: self.u_t(state_q, _t, _x, 0, *args, **kwargs))
         else:
             u = jax.jit(lambda _t, _x: self.u_t(state_q, _t, _x, xi, *args, **kwargs))
 
@@ -75,23 +74,31 @@ class QSetup(ABC):
     def u_t(self, state_q: TrainState, t: ArrayLike, x_t: ArrayLike, xi: float, *args, **kwargs) -> ArrayLike:
         raise NotImplementedError
 
-    @abstractmethod
-    def u_t_det(self, state_q: TrainState, t: ArrayLike, x_t: ArrayLike, *args, **kwargs) -> ArrayLike:
-        raise NotImplementedError
+    @property
+    def A(self):
+        return self.system.A
+
+    @property
+    def B(self):
+        return self.system.B
 
 
 def construct(system: System, model: nn.module, ode: str, parameterization: str, args: argparse.Namespace) -> QSetup:
-    from model import diagonal
+    from training import diagonal
 
-    if ode == 'first-order':
+    if ode == 'first_order':
         if parameterization == 'diagonal':
-            return diagonal.FirstOrderSetup(system, model, args.T, args.num_gaussians, args.trainable_weights,
-                                            args.base_sigma)
-        elif args.parameterization == 'low-rank':
-            raise NotImplementedError("Low-rank parameterization for first-order not implemented")
+            return diagonal.FirstOrderSetup(system, model, args.T, args.base_sigma, args.num_gaussians,
+                                            args.trainable_weights)
+        elif args.parameterization == 'low_rank':
+            raise NotImplementedError("Low-rank parameterization not implemented")
         else:
             raise ValueError(f"Unknown parameterization: {args.parameterization}")
-    elif args.ode == 'second-order':
-        raise NotImplementedError("Second-order ODE not implemented")
+    elif args.ode == 'second_order':
+        if parameterization == 'diagonal':
+            return diagonal.SecondOrderSetup(system, model, args.T, args.base_sigma, args.num_gaussians,
+                                             args.trainable_weights)
+        else:
+            raise NotImplementedError("Second-order ODE not implemented")
     else:
         raise ValueError(f"Unknown ODE: {args.ode}")

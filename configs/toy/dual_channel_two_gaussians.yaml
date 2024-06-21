@@ -1,7 +1,7 @@
 save_dir: ./out/toy/dual_channel_two_gaussians
 
 test_system: double_well_dual_channel
-ode: first-order
+ode: first_order
 parameterization: diagonal
 T: 1.0
 xi: 0.1

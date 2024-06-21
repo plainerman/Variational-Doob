@@ -6,8 +6,8 @@ import jax.numpy as jnp
 import jax
 from flax.training import train_state
 import optax
-import model.qsetup as qsetup
-from model.train import train
+import training.qsetup as qsetup
+from training.train import train
 from utils.plot import show_or_save_fig
 import os
 
@@ -20,8 +20,8 @@ parser.add_argument('--test_system', type=str,
                     choices=['double_well', 'double_well_hard', 'double_well_dual_channel', 'mueller_brown'])
 parser.add_argument('--start', type=str, help="Path to pdb file with the start structure A")
 parser.add_argument('--target', type=str, help="Path to pdb file with the target structure B")
-parser.add_argument('--ode', type=str, choices=['first-order', 'second-order'], required=True)
-parser.add_argument('--parameterization', type=str, choices=['diagonal', 'low-rank'], required=True)
+parser.add_argument('--ode', type=str, choices=['first_order', 'second_order'], required=True)
+parser.add_argument('--parameterization', type=str, choices=['diagonal', 'low_rank'], required=True)
 
 parser.add_argument('--T', type=float, required=True,
                     help="Transition time in the base unit of the system. For molecular simulations, this is in picoseconds.")
@@ -84,11 +84,10 @@ if __name__ == '__main__':
     plt.plot(loss_plot)
     show_or_save_fig(args.save_dir, 'loss_plot.pdf')
 
-
     # TODO: how to plot this nicely?
     t = args.T * jnp.linspace(0, 1, args.BS).reshape((-1, 1))
     key, path_key = jax.random.split(key)
-    eps = jax.random.normal(path_key, [args.BS, args.num_gaussians, system.A.shape[-1]])
+    eps = jax.random.normal(path_key, [args.BS, args.num_gaussians, setup.A.shape[-1]])
     mu_t, sigma_t, w_logits = state_q.apply_fn(state_q.params, t)
     w = jax.nn.softmax(w_logits)[None, :, None]
     samples = (w * (mu_t + sigma_t * eps)).sum(axis=1)
@@ -100,19 +99,20 @@ if __name__ == '__main__':
     # plt.show()
 
     key, init_key = jax.random.split(key)
-    x_0 = jnp.ones((args.num_paths, system.A.shape[0])) * system.A
+    x_0 = jnp.ones((args.num_paths, setup.A.shape[0])) * setup.A
     eps = jax.random.normal(key, shape=x_0.shape)
-    x_0 += setup.base_sigma * eps
+    x_0 += args.base_sigma * eps
 
     x_t_det = setup.sample_paths(state_q, x_0, args.dt, args.T, args.BS, None, None)
 
     if system.plot:
-        system.plot(title='Deterministic Paths', trajectories=x_t_det)
+        # In case we have a second order integration scheme, we remove the velocity for plotting
+        system.plot(title='Deterministic Paths', trajectories=x_t_det[:, :, :system.A.shape[0]])
         show_or_save_fig(args.save_dir, 'paths_deterministic.pdf')
 
     key, path_key = jax.random.split(key)
     x_t_stoch = setup.sample_paths(state_q, x_0, args.dt, args.T, args.BS, args.xi, path_key)
 
     if system.plot:
-        system.plot(title='Stochastic Paths', trajectories=x_t_stoch)
+        system.plot(title='Stochastic Paths', trajectories=x_t_stoch[:, :, :system.A.shape[0]])
         show_or_save_fig(args.save_dir, 'paths_stochastic.pdf')
