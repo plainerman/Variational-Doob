@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import jax
 from flax.training import train_state
 import optax
-import model.diagonal as diagonal
+import model.qsetup as qsetup
 from model.train import train
 from utils.plot import show_or_save_fig
 import os
@@ -20,6 +20,8 @@ parser.add_argument('--test_system', type=str,
                     choices=['double_well', 'double_well_hard', 'double_well_dual_channel', 'mueller_brown'])
 parser.add_argument('--start', type=str, help="Path to pdb file with the start structure A")
 parser.add_argument('--target', type=str, help="Path to pdb file with the target structure B")
+parser.add_argument('--ode', type=str, choices=['first-order', 'second-order'], required=True)
+parser.add_argument('--parameterization', type=str, choices=['diagonal', 'low-rank'], required=True)
 
 parser.add_argument('--T', type=float, required=True,
                     help="Transition time in the base unit of the system. For molecular simulations, this is in picoseconds.")
@@ -30,6 +32,7 @@ parser.add_argument('--gamma', type=float, required=True)
 parser.add_argument('--num_gaussians', type=int, default=1, help="Number of gaussians in the mixture model.")
 parser.add_argument('--trainable_weights', type=bool, default=False,
                     help="Whether the weights of the mixture model are trainable.")
+parser.add_argument('--base_sigma', type=float, required=True, help="Sigma at time t=0 for A and B.")
 
 # training
 parser.add_argument('--epochs', type=int, default=10_000, help="Number of epochs the system is training for.")
@@ -41,11 +44,6 @@ parser.add_argument('--seed', type=int, default=1, help="The seed that will be u
 # inference
 parser.add_argument('--num_paths', type=int, default=1000, help="The number of paths that will be generated.")
 parser.add_argument('--dt', type=float, required=True)
-
-# TODO: add sampling method. it would be easy to just do a few MD steps from A and then use those. Might also be out of distribution, not sure
-# TODO: I think this could also be a reason why the paths are all the same
-# TODO: maybe we can also use MD_STEP(A) and MD_STEP(B) as a dynamic input to the neural network instead of using fixed A and B.s
-
 
 if __name__ == '__main__':
     args = parse_args(parser)
@@ -62,15 +60,14 @@ if __name__ == '__main__':
         raise NotImplementedError
         # system = System.from_forcefield(args.start, args.target)
 
+    # TODO: parameterize neural network?
+    # TODO: if we find a nice way, maybe this can also include base_sigma
     # You can play around with any model here
     # The chosen setup will append a final layer so that the output is mu, sigma, and weights
     from model import MLP
 
     model = MLP([128, 128, 128])
-
-    # TODO: parameterize base_sigma
-    base_sigma = 2.5 * 1e-2
-    setup = diagonal.FirstOrderSetup(system, model, args.T, args.num_gaussians, args.trainable_weights, base_sigma)
+    setup = qsetup.construct(system, model, args.ode, args.parameterization, args)
 
     key = jax.random.PRNGKey(args.seed)
     key, init_key = jax.random.split(key)
@@ -87,6 +84,8 @@ if __name__ == '__main__':
     plt.plot(loss_plot)
     show_or_save_fig(args.save_dir, 'loss_plot.pdf')
 
+
+    # TODO: how to plot this nicely?
     t = args.T * jnp.linspace(0, 1, args.BS).reshape((-1, 1))
     key, path_key = jax.random.split(key)
     eps = jax.random.normal(path_key, [args.BS, args.num_gaussians, system.A.shape[-1]])

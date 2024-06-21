@@ -1,12 +1,15 @@
 save_dir: ./out/toy/dual_channel_two_gaussians
 
 test_system: double_well_dual_channel
+ode: first-order
+parameterization: diagonal
 T: 1.0
 xi: 0.1
 gamma: 1.0
 
 num_gaussians: 2
 trainable_weights: False
+base_sigma: 2.5e-2
 
 epochs: 20000
 BS: 512

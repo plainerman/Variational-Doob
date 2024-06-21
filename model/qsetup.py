@@ -1,8 +1,10 @@
+import argparse
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Callable, Optional
 from flax import linen as nn
 from flax.training.train_state import TrainState
+
 from systems import System
 from jax.typing import ArrayLike
 import jax.numpy as jnp
@@ -76,3 +78,20 @@ class QSetup(ABC):
     @abstractmethod
     def u_t_det(self, state_q: TrainState, t: ArrayLike, x_t: ArrayLike, *args, **kwargs) -> ArrayLike:
         raise NotImplementedError
+
+
+def construct(system: System, model: nn.module, ode: str, parameterization: str, args: argparse.Namespace) -> QSetup:
+    from model import diagonal
+
+    if ode == 'first-order':
+        if parameterization == 'diagonal':
+            return diagonal.FirstOrderSetup(system, model, args.T, args.num_gaussians, args.trainable_weights,
+                                            args.base_sigma)
+        elif args.parameterization == 'low-rank':
+            raise NotImplementedError("Low-rank parameterization for first-order not implemented")
+        else:
+            raise ValueError(f"Unknown parameterization: {args.parameterization}")
+    elif args.ode == 'second-order':
+        raise NotImplementedError("Second-order ODE not implemented")
+    else:
+        raise ValueError(f"Unknown ODE: {args.ode}")
