@@ -21,16 +21,17 @@ class QSetup(ABC):
     """
     system: System
     model_q: nn.Module
+    xi: ArrayLike
 
     @abstractmethod
     def construct_loss(self, *args, **kwargs) -> Callable:
         raise NotImplementedError
 
     def sample_paths(self, state_q: TrainState, x_0: ArrayLike, dt: float, T: float, BS: int,
-                     xi: Optional[float], key: Optional[ArrayLike], *args, **kwargs) -> ArrayLike:
+                     key: Optional[ArrayLike], *args, **kwargs) -> ArrayLike:
+        """Sample paths. If key is None, the sampling is deterministic. Otherwise, it is stochastic."""
         assert x_0.ndim == 2
         assert T / dt == int(T / dt), "dt must divide T evenly"
-        assert (xi is None) == (key is None), "xi and key must be both None or both specified"
         N = int(T / dt)
 
         num_paths = x_0.shape[0]
@@ -39,10 +40,7 @@ class QSetup(ABC):
         x_t = x_t.at[:, 0, :].set(x_0)
 
         t = jnp.zeros((BS, 1), dtype=jnp.float32)
-        if key is None:
-            u = jax.jit(lambda _t, _x: self.u_t(state_q, _t, _x, 0, *args, **kwargs))
-        else:
-            u = jax.jit(lambda _t, _x: self.u_t(state_q, _t, _x, xi, *args, **kwargs))
+        u = jax.jit(lambda _t, _x: self.u_t(state_q, _t, _x, key is None, *args, **kwargs))
 
         for i in trange(N):
             for j in range(0, num_paths, BS):
@@ -61,9 +59,9 @@ class QSetup(ABC):
                 else:
                     # For stochastic sampling we compute the noise
                     key, iter_key = jax.random.split(key)
-                    noise = xi * jax.random.normal(iter_key, shape=(BS, ndim))
+                    noise = self.xi * jax.random.normal(iter_key, shape=(BS, ndim))
 
-                new_x = cur_x_t + dt * u(t, cur_x_t, *args, **kwargs) + jnp.sqrt(dt) * noise
+                new_x = cur_x_t + dt * u(t, cur_x_t) + jnp.sqrt(dt) * noise
                 x_t = x_t.at[j:j_end, i + 1, :].set(new_x[:j_end - j])
 
             t += dt
@@ -71,7 +69,7 @@ class QSetup(ABC):
         return x_t
 
     @abstractmethod
-    def u_t(self, state_q: TrainState, t: ArrayLike, x_t: ArrayLike, xi: ArrayLike, *args, **kwargs) -> ArrayLike:
+    def u_t(self, state_q: TrainState, t: ArrayLike, x_t: ArrayLike, deterministic: bool, *args, **kwargs) -> ArrayLike:
         raise NotImplementedError
 
     @property
@@ -83,12 +81,13 @@ class QSetup(ABC):
         return self.system.B
 
 
-def construct(system: System, model: nn.module, ode: str, parameterization: str, args: argparse.Namespace) -> QSetup:
+def construct(system: System, model: nn.module, ode: str, parameterization: str, xi: ArrayLike,
+              args: argparse.Namespace) -> QSetup:
     from training import diagonal
 
     if ode == 'first_order':
         if parameterization == 'diagonal':
-            return diagonal.FirstOrderSetup(system, model, args.T, args.base_sigma, args.num_gaussians,
+            return diagonal.FirstOrderSetup(system, model, xi, args.T, args.base_sigma, args.num_gaussians,
                                             args.trainable_weights)
         elif args.parameterization == 'low_rank':
             raise NotImplementedError("Low-rank parameterization not implemented")
@@ -96,7 +95,7 @@ def construct(system: System, model: nn.module, ode: str, parameterization: str,
             raise ValueError(f"Unknown parameterization: {args.parameterization}")
     elif args.ode == 'second_order':
         if parameterization == 'diagonal':
-            return diagonal.SecondOrderSetup(system, model, args.T, args.base_sigma, args.num_gaussians,
+            return diagonal.SecondOrderSetup(system, model, xi, args.T, args.base_sigma, args.num_gaussians,
                                              args.trainable_weights)
         else:
             raise NotImplementedError("Second-order ODE not implemented")

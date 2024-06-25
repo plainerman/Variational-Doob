@@ -56,7 +56,8 @@ parser.add_argument('--dt', type=float, required=True)
 
 def main():
     # TODO: force clipping
-    # TODO: temperature
+    print("!!!!Next todos: plot ALDP")
+
     args = parse_args(parser)
     assert args.test_system or args.start and args.target, "Either specify a test system or provide start and target structures"
     assert not (
@@ -86,7 +87,7 @@ def main():
     from model import MLP
 
     model = MLP([128, 128, 128])
-    setup = qsetup.construct(system, model, args.ode, args.parameterization, args)
+    setup = qsetup.construct(system, model, args.ode, args.parameterization, xi, args)
 
     key = jax.random.PRNGKey(args.seed)
     key, init_key = jax.random.split(key)
@@ -94,16 +95,18 @@ def main():
 
     optimizer_q = optax.adam(learning_rate=args.lr)
     state_q = train_state.TrainState.create(apply_fn=setup.model_q.apply, params=params_q, tx=optimizer_q)
-    loss_fn = setup.construct_loss(state_q, xi, args.gamma, args.BS)
+    loss_fn = setup.construct_loss(state_q, args.gamma, args.BS)
 
     key, train_key = jax.random.split(key)
     state_q, loss_plot = train(state_q, loss_fn, args.epochs, train_key)
     print("Number of potential evaluations", args.BS * args.epochs)
 
+    if jnp.isnan(jnp.array(loss_plot)).any():
+        print("Warning: Loss contains NaNs")
     plt.plot(loss_plot)
     show_or_save_fig(args.save_dir, 'loss_plot.pdf')
 
-    # TODO: how to plot this nicely?
+    print("!!!TODO: how to plot this nicely?")
     t = args.T * jnp.linspace(0, 1, args.BS, dtype=jnp.float32).reshape((-1, 1))
     key, path_key = jax.random.split(key)
     eps = jax.random.normal(path_key, [args.BS, args.num_gaussians, setup.A.shape[-1]])
@@ -122,7 +125,7 @@ def main():
     eps = jax.random.normal(key, shape=x_0.shape)
     x_0 += args.base_sigma * eps
 
-    x_t_det = setup.sample_paths(state_q, x_0, args.dt, args.T, args.BS, None, None)
+    x_t_det = setup.sample_paths(state_q, x_0, args.dt, args.T, args.BS, None)
 
     if system.plot:
         # In case we have a second order integration scheme, we remove the velocity for plotting
@@ -130,7 +133,7 @@ def main():
         show_or_save_fig(args.save_dir, 'paths_deterministic.pdf')
 
     key, path_key = jax.random.split(key)
-    x_t_stoch = setup.sample_paths(state_q, x_0, args.dt, args.T, args.BS, xi, path_key)
+    x_t_stoch = setup.sample_paths(state_q, x_0, args.dt, args.T, args.BS, path_key)
 
     if system.plot:
         system.plot(title='Stochastic Paths', trajectories=x_t_stoch[:, :, :system.A.shape[0]])

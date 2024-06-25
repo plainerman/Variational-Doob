@@ -53,7 +53,7 @@ class DiagonalSetup(QSetup, ABC):
     def _drift(self, _x: ArrayLike, gamma: float) -> ArrayLike:
         raise NotImplementedError
 
-    def construct_loss(self, state_q: TrainState, xi: ArrayLike, gamma: float, BS: int) -> Callable[
+    def construct_loss(self, state_q: TrainState, gamma: float, BS: int) -> Callable[
         [Union[FrozenVariableDict, Dict[str, Any]], ArrayLike], ArrayLike]:
 
         def loss_fn(params_q: Union[FrozenVariableDict, Dict[str, Any]], key: ArrayLike) -> ArrayLike:
@@ -80,14 +80,14 @@ class DiagonalSetup(QSetup, ABC):
                 log_q_t = -(relative_mixture_weights / (_sigma_t ** 2) * (_x - _mu_t)).sum(axis=1)
                 u_t = (relative_mixture_weights * (1 / _sigma_t * _dsigmadt * (_x - _mu_t) + _dmudt)).sum(axis=1)
 
-                return u_t - self._drift(_x.reshape(BS, ndim), gamma) + 0.5 * (xi ** 2) * log_q_t
+                return u_t - self._drift(_x.reshape(BS, ndim), gamma) + 0.5 * (self.xi ** 2) * log_q_t
 
-            loss = 0.5 * ((v_t(eps, t) / xi) ** 2).sum(-1, keepdims=True)
+            loss = 0.5 * ((v_t(eps, t) / self.xi) ** 2).sum(-1, keepdims=True)
             return loss.mean()
 
         return loss_fn
 
-    def u_t(self, state_q: TrainState, t: ArrayLike, x_t: ArrayLike, xi: ArrayLike, *args, **kwargs) -> ArrayLike:
+    def u_t(self, state_q: TrainState, t: ArrayLike, x_t: ArrayLike, deterministic: bool, *args, **kwargs) -> ArrayLike:
         _mu_t, _sigma_t, _w_logits, _dmudt, _dsigmadt = forward_and_derivatives(state_q, t)
         _x = x_t[:, None, :]
 
@@ -96,55 +96,44 @@ class DiagonalSetup(QSetup, ABC):
 
         _u_t = (relative_mixture_weights * (1 / _sigma_t * _dsigmadt * (_x - _mu_t) + _dmudt)).sum(axis=1)
 
-        if xi == 0:
+        if deterministic:
             return _u_t
 
         log_q_t = -(relative_mixture_weights / (_sigma_t ** 2) * (_x - _mu_t)).sum(axis=1)
 
-        return _u_t + 0.5 * (xi ** 2) * log_q_t
+        return _u_t + 0.5 * (self.xi ** 2) * log_q_t
 
 
 class FirstOrderSetup(DiagonalSetup):
-    def __init__(self, system: System, model: nn.module, T: float, base_sigma: float, num_mixtures: int,
+    def __init__(self, system: System, model: nn.module, xi: ArrayLike, T: float, base_sigma: float, num_mixtures: int,
                  trainable_weights: bool):
         model_q = DiagonalWrapper(model, T, system.A, system.B, num_mixtures, trainable_weights, base_sigma)
-        super().__init__(system, model_q, T, base_sigma, num_mixtures)
+        super().__init__(system, model_q, xi, T, base_sigma, num_mixtures)
 
     def _drift(self, _x: ArrayLike, gamma: float) -> ArrayLike:
         return -self.system.dUdx(_x / (gamma * self.system.mass))
 
 
 class SecondOrderSetup(DiagonalSetup):
-    def __init__(self, system: System, model: nn.module, T: float, base_sigma: float, num_mixtures: int,
+    def __init__(self, system: System, model: nn.module, xi: ArrayLike, T: float, base_sigma: float, num_mixtures: int,
                  trainable_weights: bool):
         # We pad the A and B matrices with zeros to account for the velocity
         self._A = jnp.hstack([system.A, jnp.zeros_like(system.A)])
         self._B = jnp.hstack([system.B, jnp.zeros_like(system.B)])
 
+        xi_velocity = jnp.ones_like(system.A) * xi
+        xi_pos = jnp.zeros_like(xi_velocity) + 1e-4
+
+        xi_second_order = jnp.concatenate((xi_pos, xi_velocity), axis=-1)
+
         model_q = DiagonalWrapper(model, T, self._A, self._B, num_mixtures, trainable_weights, base_sigma)
-        super().__init__(system, model_q, T, base_sigma, num_mixtures)
+        super().__init__(system, model_q, xi_second_order, T, base_sigma, num_mixtures)
 
     def _drift(self, _x: ArrayLike, gamma: float) -> ArrayLike:
         # number of dimensions without velocity
         ndim = self.system.A.shape[0]
 
         return jnp.hstack([_x[:, ndim:] / self.system.mass, -self.system.dUdx(_x[:, :ndim]) - _x[:, ndim:] * gamma])
-
-    def _xi_to_second_order(self, xi: ArrayLike) -> ArrayLike:
-        if xi.shape == self.model_q.A.shape:
-            return xi
-
-        xi_velocity = jnp.ones_like(self.system.A) * xi
-        xi_pos = jnp.zeros_like(xi_velocity) + 1e-4
-
-        return jnp.concatenate((xi_pos, xi_velocity), axis=-1)
-
-    def construct_loss(self, state_q: TrainState, xi: ArrayLike, gamma: float, BS: int) -> Callable[
-        [Union[FrozenVariableDict, Dict[str, Any]], ArrayLike], ArrayLike]:
-        return super().construct_loss(state_q, self._xi_to_second_order(xi), gamma, BS)
-
-    def u_t(self, state_q: TrainState, t: ArrayLike, x_t: ArrayLike, xi: ArrayLike, *args, **kwargs) -> ArrayLike:
-        return super().u_t(state_q, t, x_t, self._xi_to_second_order(xi), *args, **kwargs)
 
     @property
     def A(self):
