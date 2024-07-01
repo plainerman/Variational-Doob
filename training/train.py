@@ -14,9 +14,11 @@ def train(state_q: TrainState, loss_fn: Callable, epochs: int, key: ArrayLike) -
         return _state_q, loss
 
     loss_plot = []
-    for _ in trange(epochs):
-        key, loc_key = jax.random.split(key)
-        state_q, loss = train_step(state_q, loc_key)
-        loss_plot.append(loss)
+    with trange(epochs) as pbar:
+        for _ in pbar:
+            key, loc_key = jax.random.split(key)
+            state_q, loss = train_step(state_q, loc_key)
+            pbar.set_postfix(loss=loss)
+            loss_plot.append(loss)
 
     return state_q, loss_plot
