@@ -19,3 +19,5 @@ BS: 256
 
 num_paths: 256
 dt: 1e-3
+
+log_plots: True

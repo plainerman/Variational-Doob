@@ -1,13 +1,17 @@
-from typing import Optional, Callable
-
-import matplotlib.pyplot as plt
 from tqdm import tqdm
-from jax.typing import ArrayLike
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Callable
 from jax.typing import ArrayLike
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from tps.plot import PeriodicPathHistogram
+
+
+def log_scale(log_plot: bool, x: bool, y: bool):
+    if log_plot:
+        if x:
+            plt.gca().set_xscale('log')
+        if y:
+            plt.gca().set_yscale('log')
 
 
 def show_or_save_fig(save_dir: Optional[str], name: str):
@@ -27,17 +31,23 @@ def toy_plot_energy_surface(U, xlim: ArrayLike, ylim: ArrayLike,
     # black and white contour plot
     plt.contour(x, y, z, levels=levels, colors='black')
 
-    plot_2d(xlim, ylim, bins, *args, **kwargs)
+    plot_2d(xlim=xlim, ylim=ylim, bins=bins, *args, **kwargs)
 
 
-def plot_cv(points: ArrayLike, trajectories: ArrayLike, cv: Callable[[ArrayLike], ArrayLike], *args, **kwargs):
+def plot_cv(cv: Callable[[ArrayLike], ArrayLike], points: Optional[ArrayLike] = None,
+            trajectories: Optional[ArrayLike] = None, *args, **kwargs):
     print("!!! TODO: We should also plot the histogram of the energy function")
-    plot_2d(cv(points), cv(trajectories), *args, **kwargs)
+    if trajectories is None:
+        cv_trajectories = None
+    else:
+        cv_trajectories = cv(trajectories.reshape(-1, trajectories.shape[-1])).reshape(trajectories.shape[0],
+                                                                                       trajectories.shape[1], 2)
+    plot_2d(points=None if points is None else cv(points), trajectories=cv_trajectories, *args, **kwargs)
 
 
 def plot_2d(
-        xlim: ArrayLike, ylim: ArrayLike, bins: int,
         states: [Tuple[str, ArrayLike]],
+        xlim: ArrayLike, ylim: ArrayLike, bins: int,
         points: Optional[ArrayLike] = None,
         trajectories: Optional[ArrayLike] = None,
         periodic: bool = False,

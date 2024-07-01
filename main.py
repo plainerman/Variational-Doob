@@ -8,7 +8,7 @@ from flax.training import train_state
 import optax
 import training.qsetup as qsetup
 from training.train import train
-from utils.plot import show_or_save_fig
+from utils.plot import show_or_save_fig, log_scale
 import os
 import sys
 
@@ -53,6 +53,9 @@ parser.add_argument('--seed', type=int, default=1, help="The seed that will be u
 # inference
 parser.add_argument('--num_paths', type=int, default=1000, help="The number of paths that will be generated.")
 parser.add_argument('--dt', type=float, required=True)
+
+# plotting
+parser.add_argument('--log_plots', type=bool, default=False, const=True, nargs='?', help="Save plots in log scale where possible")
 
 
 def main():
@@ -106,6 +109,7 @@ def main():
     if jnp.isnan(jnp.array(loss_plot)).any():
         print("Warning: Loss contains NaNs")
     plt.plot(loss_plot)
+    log_scale(args.log_plots, False, True)
     show_or_save_fig(args.save_dir, 'loss_plot.pdf')
 
     print("!!!TODO: how to plot this nicely?")

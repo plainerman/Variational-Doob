@@ -1,5 +1,6 @@
 from functools import partial
-from utils.plot import toy_plot_energy_surface
+from utils.angles import phi_psi_from_mdtraj
+from utils.plot import toy_plot_energy_surface, plot_cv
 import potentials
 import jax
 import jax.numpy as jnp
@@ -62,6 +63,7 @@ class System:
 
         A = jnp.array(A_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer), dtype=jnp.float32)
         B = jnp.array(B_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer), dtype=jnp.float32)
+        num_atoms = A.shape[0]
         A, B = kabsch_align(A, B)
         A, B = A.reshape(-1), B.reshape(-1)
 
@@ -76,19 +78,25 @@ class System:
         # Create a box used when calling
         box = jnp.array([[50.0, 0.0, 0.0], [0.0, 50.0, 0.0], [0.0, 0.0, 50.0]])
         nbList = NeighborList(box, 4.0, potentials.meta["cov_map"])
-        nbList.allocate(A_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer))
+        nbList.allocate(A.reshape(-1, 3))
 
         _U = potentials.getPotentialFunc()
 
-        @jax.jit
         @jax.vmap
         def U(_x):
-            return _U(_x.reshape(22, 3), box, nbList.pairs, ff.paramset.parameters).sum()
+            return _U(_x.reshape(num_atoms, 3), box, nbList.pairs, ff.paramset.parameters).sum()
 
         if cv is None:
             plot = None
         elif cv == 'phi_psi':
-            raise NotImplementedError
+            mdtraj_topology = md.Topology.from_openmm(A_pdb.topology)
+            phis_psis = phi_psi_from_mdtraj(mdtraj_topology)
+
+            plot = partial(plot_cv,
+                           cv=phis_psis,
+                           bins=100, states=list(zip(['A', 'B'], [phis_psis(A[None]), phis_psis(B[None])])),
+                           xlim=jnp.array((-jnp.pi, jnp.pi)), ylim=jnp.array((-jnp.pi, jnp.pi)),
+                           )
         else:
             raise ValueError(f"Unknown cv: {cv}")
 
