@@ -11,6 +11,7 @@ from training.train import train
 from utils.plot import show_or_save_fig, log_scale
 import os
 import sys
+import orbax.checkpoint as ocp
 
 parser = ArgumentParser()
 parser.add_argument('--save_dir', type=str, default=None, help="Specify a path where the data will be stored.")
@@ -47,6 +48,8 @@ parser.add_argument('--epochs', type=int, default=10_000, help="Number of epochs
 parser.add_argument('--BS', type=int, default=512, help="Batch size used for training.")
 parser.add_argument('--lr', type=float, default=1e-4, help="Learning rate")
 parser.add_argument('--force_clip', type=float, default=1e8, help="Clipping value for the force")
+parser.add_argument('--load', type=bool, default=False, const=True, nargs='?',
+                    help="Continue training and load the model from the save_dir.")
 
 parser.add_argument('--seed', type=int, default=1, help="The seed that will be used for initialization")
 
@@ -55,7 +58,8 @@ parser.add_argument('--num_paths', type=int, default=1000, help="The number of p
 parser.add_argument('--dt', type=float, required=True)
 
 # plotting
-parser.add_argument('--log_plots', type=bool, default=False, const=True, nargs='?', help="Save plots in log scale where possible")
+parser.add_argument('--log_plots', type=bool, default=False, const=True, nargs='?',
+                    help="Save plots in log scale where possible")
 
 
 def main():
@@ -102,13 +106,36 @@ def main():
     state_q = train_state.TrainState.create(apply_fn=setup.model_q.apply, params=params_q, tx=optimizer_q)
     loss_fn = setup.construct_loss(state_q, args.gamma, args.BS)
 
-    key, train_key = jax.random.split(key)
-    state_q, loss_plot = train(state_q, loss_fn, args.epochs, train_key)
-    print("Number of potential evaluations", args.BS * args.epochs)
+    ckpt = {'model': state_q, 'losses': []}
+    orbax_checkpointer = ocp.PyTreeCheckpointer()
+    options = ocp.CheckpointManagerOptions(
+        save_interval_steps=1_000,
+        max_to_keep=3,
+        create=True,
+        cleanup_tmp_directories=True,
+        save_on_steps=[args.epochs]
+    )
+    checkpoint_manager = ocp.CheckpointManager(os.path.abspath(args.save_dir), orbax_checkpointer, options)
 
-    if jnp.isnan(jnp.array(loss_plot)).any():
+    if args.load:
+        if checkpoint_manager.latest_step() is None:
+            print("Warning: No checkpoint found.")
+        else:
+            print('Loading checkpoint:', checkpoint_manager.latest_step())
+
+            state_restored = checkpoint_manager.restore(checkpoint_manager.latest_step())
+            # The model needs to be casted to a trainstate object
+            state_restored['model'] = checkpoint_manager.restore(checkpoint_manager.latest_step(), items=ckpt)['model']
+            ckpt = state_restored
+
+    key, train_key = jax.random.split(key)
+    ckpt = train(ckpt, loss_fn, args.epochs, train_key, checkpoint_manager)
+    state_q = ckpt['model']
+    print("Total number of potential evaluations", args.BS * args.epochs)
+
+    if jnp.isnan(jnp.array(ckpt['losses'])).any():
         print("Warning: Loss contains NaNs")
-    plt.plot(loss_plot)
+    plt.plot(ckpt['losses'])
     log_scale(args.log_plots, False, True)
     show_or_save_fig(args.save_dir, 'loss_plot.pdf')
 
