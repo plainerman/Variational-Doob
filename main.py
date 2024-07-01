@@ -46,6 +46,7 @@ parser.add_argument('--base_sigma', type=float, required=True, help="Sigma at ti
 parser.add_argument('--epochs', type=int, default=10_000, help="Number of epochs the system is training for.")
 parser.add_argument('--BS', type=int, default=512, help="Batch size used for training.")
 parser.add_argument('--lr', type=float, default=1e-4, help="Learning rate")
+parser.add_argument('--force_clip', type=float, default=1e8, help="Clipping value for the force")
 
 parser.add_argument('--seed', type=int, default=1, help="The seed that will be used for initialization")
 
@@ -55,8 +56,9 @@ parser.add_argument('--dt', type=float, required=True)
 
 
 def main():
-    # TODO: force clipping
     print("!!!!Next todos: plot ALDP")
+    # TODO: internal coordinates
+    # TODO: neural network parameterization
 
     args = parse_args(parser)
     assert args.test_system or args.start and args.target, "Either specify a test system or provide start and target structures"
@@ -70,9 +72,9 @@ def main():
     os.makedirs(args.save_dir, exist_ok=True)
 
     if args.test_system:
-        system = System.from_name(args.test_system)
+        system = System.from_name(args.test_system, args.force_clip)
     else:
-        system = System.from_pdb(args.start, args.target, args.forcefield, args.cv)
+        system = System.from_pdb(args.start, args.target, args.forcefield, args.cv, args.force_clip)
 
     if args.xi:
         xi = args.xi

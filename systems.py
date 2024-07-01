@@ -11,13 +11,18 @@ from typing import Self
 from utils.pdb import assert_same_molecule
 from utils.rmsd import kabsch_align
 from dmff import Hamiltonian, NeighborList  # This sets jax to use 64-bit precision
+import mdtraj as md
+
 
 class System:
-    def __init__(self, U: Callable[[ArrayLike], ArrayLike], A: ArrayLike, B: ArrayLike, mass: ArrayLike, plot):
+    def __init__(self, U: Callable[[ArrayLike], ArrayLike], A: ArrayLike, B: ArrayLike, mass: ArrayLike, plot,
+                 force_clip: float):
         assert A.shape == B.shape == mass.shape
 
         self.U = U
-        self.dUdx = jax.jit(jax.grad(lambda _x: U(_x).sum()))
+
+        dUdx = jax.grad(lambda _x: U(_x).sum())
+        self.dUdx = jax.jit(jax.jit(lambda _x: jnp.clip(dUdx(_x), -force_clip, force_clip)))
 
         self.A, self.B = A, B
         self.mass = mass
@@ -25,7 +30,7 @@ class System:
         self.plot = plot
 
     @classmethod
-    def from_name(cls, name: str) -> Self:
+    def from_name(cls, name: str, force_clip: float) -> Self:
         if name == 'double_well':
             U, A, B = potentials.double_well
         elif name == 'double_well_hard':
@@ -45,10 +50,10 @@ class System:
                        U=U, states=list(zip(['A', 'B'], [A, B])), xlim=xlim, ylim=ylim, alpha=1.0
                        )
         mass = jnp.array([1.0, 1.0])
-        return cls(U, A, B, mass, plot)
+        return cls(U, A, B, mass, plot, force_clip)
 
     @classmethod
-    def from_pdb(cls, A: str, B: str, forcefield: [str], cv: Optional[str]) -> Self:
+    def from_pdb(cls, A: str, B: str, forcefield: [str], cv: Optional[str], force_clip: float) -> Self:
         A_pdb, B_pdb = app.PDBFile(A), app.PDBFile(B)
         assert_same_molecule(A_pdb, B_pdb)
 
@@ -87,4 +92,4 @@ class System:
         else:
             raise ValueError(f"Unknown cv: {cv}")
 
-        return cls(U, A, B, mass, None)
+        return cls(U, A, B, mass, plot, force_clip)
