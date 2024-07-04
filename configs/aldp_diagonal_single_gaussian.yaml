@@ -16,6 +16,7 @@ base_sigma: 1e-4
 
 epochs: 50
 BS: 256
+force_clip: 1e7
 
 num_paths: 256
 dt: 1e-3

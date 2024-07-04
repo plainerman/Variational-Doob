@@ -5,6 +5,7 @@ import jax
 from jax.typing import ArrayLike
 from orbax.checkpoint import CheckpointManager
 from tqdm import trange
+import jax.numpy as jnp
 
 
 def train(ckpt: Any, loss_fn: Callable, epochs: int, key: ArrayLike,
@@ -19,11 +20,18 @@ def train(ckpt: Any, loss_fn: Callable, epochs: int, key: ArrayLike,
         _state_q = _state_q.apply_gradients(grads=grads)
         return _state_q, loss
 
+    log_loss = False
     with trange(ckpt['model'].step, epochs) as pbar:
         for i in pbar:
             key, loc_key = jax.random.split(key)
             ckpt['model'], loss = train_step(ckpt['model'], loc_key)
-            pbar.set_postfix(loss=loss)
+            if loss > 1e4:
+                log_loss = True
+
+            if log_loss:
+                pbar.set_postfix(log_loss=jnp.log(loss))
+            else:
+                pbar.set_postfix(loss=loss)
             ckpt['losses'].append(loss.item())
 
             if checkpoint_manager.should_save(i + 1):
