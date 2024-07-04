@@ -48,8 +48,10 @@ parser.add_argument('--epochs', type=int, default=10_000, help="Number of epochs
 parser.add_argument('--BS', type=int, default=512, help="Batch size used for training.")
 parser.add_argument('--lr', type=float, default=1e-4, help="Learning rate")
 parser.add_argument('--force_clip', type=float, default=1e8, help="Clipping value for the force")
+
 parser.add_argument('--load', type=bool, default=False, const=True, nargs='?',
                     help="Continue training and load the model from the save_dir.")
+parser.add_argument('--save_interval', type=int, default=1_000, help="Interval at which the model is saved.")
 
 parser.add_argument('--seed', type=int, default=1, help="The seed that will be used for initialization")
 
@@ -109,7 +111,7 @@ def main():
     ckpt = {'model': state_q, 'losses': []}
     orbax_checkpointer = ocp.PyTreeCheckpointer()
     options = ocp.CheckpointManagerOptions(
-        save_interval_steps=1_000,
+        save_interval_steps=args.save_interval,
         max_to_keep=3,
         create=True,
         cleanup_tmp_directories=True,
