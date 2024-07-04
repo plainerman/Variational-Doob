@@ -47,7 +47,7 @@ parser.add_argument('--base_sigma', type=float, required=True, help="Sigma at ti
 parser.add_argument('--epochs', type=int, default=10_000, help="Number of epochs the system is training for.")
 parser.add_argument('--BS', type=int, default=512, help="Batch size used for training.")
 parser.add_argument('--lr', type=float, default=1e-4, help="Learning rate")
-parser.add_argument('--force_clip', type=float, default=1e8, help="Clipping value for the force")
+parser.add_argument('--force_clip', type=float, default=float('inf'), help="Clipping value for the force")
 
 parser.add_argument('--load', type=bool, default=False, const=True, nargs='?',
                     help="Continue training and load the model from the save_dir.")
