@@ -35,8 +35,18 @@ python eval/evaluate_tps.py
 respectively. In both cases, you might need to change the paths that you want to evaluate.
 
 ## Run our method
-To sample trajectories for the Müller-Brown potential you can run
+To sample trajectories with our method, we provide ready to go config files in `configs/`. You can run them with
 
 ```bash
-python mueller.py
+python main.py --config configs/toy/mueller_single_gaussian.yaml
+python main.py --config configs/toy/dual_channel_single_gaussian.yaml
+python main.py --config configs/toy/dual_channel_two_gaussian.yaml
 ```
+
+for the toy examples and
+
+```bash
+python main.py --cconfig configs/aldp_diagonal_single_gaussian.yaml
+```
+
+for real molecular systems.
