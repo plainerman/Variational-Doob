@@ -83,21 +83,30 @@ class QSetup(ABC):
 
 def construct(system: System, model: nn.module, ode: str, parameterization: str, xi: ArrayLike,
               args: argparse.Namespace) -> QSetup:
-    from training import diagonal
+    from training.setups import diagonal
 
     if ode == 'first_order':
-        if parameterization == 'diagonal':
-            return diagonal.FirstOrderSetup(system, model, xi, args.T, args.base_sigma, args.num_gaussians,
-                                            args.trainable_weights)
-        elif args.parameterization == 'low_rank':
-            raise NotImplementedError("Low-rank parameterization not implemented")
-        else:
-            raise ValueError(f"Unknown parameterization: {args.parameterization}")
-    elif args.ode == 'second_order':
-        if parameterization == 'diagonal':
-            return diagonal.SecondOrderSetup(system, model, xi, args.T, args.base_sigma, args.num_gaussians,
-                                             args.trainable_weights)
-        else:
-            raise NotImplementedError("Second-order ODE not implemented")
+        order = 'first'
+        A = system.A
+        B = system.B
+    elif ode == 'second_order':
+        order = 'second'
+
+        # We pad the A and B matrices with zeros to account for the velocity
+        A = jnp.hstack([system.A, jnp.zeros_like(system.A)])
+        B = jnp.hstack([system.B, jnp.zeros_like(system.B)])
+
+        xi_velocity = jnp.ones_like(system.A) * xi
+        xi_pos = jnp.zeros_like(xi_velocity) + 1e-4
+
+        xi = jnp.concatenate((xi_pos, xi_velocity), axis=-1)
     else:
-        raise ValueError(f"Unknown ODE: {args.ode}")
+        raise ValueError(f"Unknown ODE: {ode}")
+
+    if parameterization == 'diagonal':
+        wrapped_module = diagonal.DiagonalWrapper(
+            model, args.T, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
+        )
+        return diagonal.DiagonalSetup(system, wrapped_module, xi, order, args.T)
+    else:
+        raise ValueError(f"Unknown parameterization: {parameterization}")

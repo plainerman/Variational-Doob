@@ -1,15 +1,14 @@
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from jax.typing import ArrayLike
 from flax import linen as nn
 import jax.numpy as jnp
-from typing import Union, Dict, Any, Callable, Tuple, Optional
+from typing import Union, Dict, Any, Callable
 from flax.training.train_state import TrainState
 import jax
 from flax.typing import FrozenVariableDict
 from model.utils import WrappedModule
-from training.qsetup import QSetup
 from systems import System
+from training.setups.drift import DriftedSetup
 from training.utils import forward_and_derivatives
 
 
@@ -21,7 +20,7 @@ class DiagonalWrapper(WrappedModule):
     base_sigma: float
 
     @nn.compact
-    def _post_process(self, t: ArrayLike, h: ArrayLike):
+    def _post_process(self, h: ArrayLike, t: ArrayLike):
         ndim = self.A.shape[0]
         num_mixtures = self.num_mixtures
         h = nn.Dense(2 * ndim * num_mixtures)(h)
@@ -43,15 +42,13 @@ class DiagonalWrapper(WrappedModule):
 
 
 @dataclass
-class DiagonalSetup(QSetup, ABC):
+class DiagonalSetup(DriftedSetup):
     model_q: DiagonalWrapper
     T: float
-    base_sigma: float
-    num_mixtures: int
 
-    @abstractmethod
-    def _drift(self, _x: ArrayLike, gamma: float) -> ArrayLike:
-        raise NotImplementedError
+    def __init__(self, system: System, model_q: DiagonalWrapper, xi: ArrayLike, order: str, T: float):
+        super().__init__(system, model_q, xi, order)
+        self.T = T
 
     def construct_loss(self, state_q: TrainState, gamma: float, BS: int) -> Callable[
         [Union[FrozenVariableDict, Dict[str, Any]], ArrayLike], ArrayLike]:
@@ -70,7 +67,7 @@ class DiagonalSetup(QSetup, ABC):
 
                 _x = _mu_t[jnp.arange(BS), _i, None] + _sigma_t[jnp.arange(BS), _i, None] * eps
 
-                if self.num_mixtures == 1:
+                if _mu_t.shape[1] == 1:
                     # This completely ignores the weights and saves some time
                     relative_mixture_weights = 1
                 else:
@@ -102,43 +99,3 @@ class DiagonalSetup(QSetup, ABC):
         log_q_t = -(relative_mixture_weights / (_sigma_t ** 2) * (_x - _mu_t)).sum(axis=1)
 
         return _u_t + 0.5 * (self.xi ** 2) * log_q_t
-
-
-class FirstOrderSetup(DiagonalSetup):
-    def __init__(self, system: System, model: nn.module, xi: ArrayLike, T: float, base_sigma: float, num_mixtures: int,
-                 trainable_weights: bool):
-        model_q = DiagonalWrapper(model, T, system.A, system.B, num_mixtures, trainable_weights, base_sigma)
-        super().__init__(system, model_q, xi, T, base_sigma, num_mixtures)
-
-    def _drift(self, _x: ArrayLike, gamma: float) -> ArrayLike:
-        return -self.system.dUdx(_x / (gamma * self.system.mass))
-
-
-class SecondOrderSetup(DiagonalSetup):
-    def __init__(self, system: System, model: nn.module, xi: ArrayLike, T: float, base_sigma: float, num_mixtures: int,
-                 trainable_weights: bool):
-        # We pad the A and B matrices with zeros to account for the velocity
-        self._A = jnp.hstack([system.A, jnp.zeros_like(system.A)])
-        self._B = jnp.hstack([system.B, jnp.zeros_like(system.B)])
-
-        xi_velocity = jnp.ones_like(system.A) * xi
-        xi_pos = jnp.zeros_like(xi_velocity) + 1e-4
-
-        xi_second_order = jnp.concatenate((xi_pos, xi_velocity), axis=-1)
-
-        model_q = DiagonalWrapper(model, T, self._A, self._B, num_mixtures, trainable_weights, base_sigma)
-        super().__init__(system, model_q, xi_second_order, T, base_sigma, num_mixtures)
-
-    def _drift(self, _x: ArrayLike, gamma: float) -> ArrayLike:
-        # number of dimensions without velocity
-        ndim = self.system.A.shape[0]
-
-        return jnp.hstack([_x[:, ndim:] / self.system.mass, -self.system.dUdx(_x[:, :ndim]) - _x[:, ndim:] * gamma])
-
-    @property
-    def A(self):
-        return self._A
-
-    @property
-    def B(self):
-        return self._B

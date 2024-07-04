@@ -29,9 +29,9 @@ def train(ckpt: Any, loss_fn: Callable, epochs: int, key: ArrayLike,
                 log_loss = True
 
             if log_loss:
-                pbar.set_postfix(log_loss=jnp.log(loss))
+                pbar.set_postfix(log_loss=f"{jnp.log(loss):.4f}")
             else:
-                pbar.set_postfix(loss=loss)
+                pbar.set_postfix(loss=f"{loss:.4f}")
             ckpt['losses'].append(loss.item())
 
             if checkpoint_manager.should_save(i + 1):
