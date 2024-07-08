@@ -30,6 +30,8 @@ parser.add_argument('--cv', type=str, choices=['phi_psi'],
 parser.add_argument('--T', type=float, required=True,
                     help="Transition time in the base unit of the system. For molecular simulations, this is in picoseconds.")
 parser.add_argument('--xi', type=float)
+parser.add_argument('--xi_pos_noise', type=float, default=1e-4,
+                    help="For second order SDEs we have to add a small noise to the positional xi. This is the value of this noise.")
 parser.add_argument('--temperature', type=float,
                     help="The temperature of the system in Kelvin. Either specify this or xi.")
 parser.add_argument('--gamma', type=float, required=True)
@@ -98,7 +100,7 @@ def main():
     from model import MLP
 
     model = MLP([128, 128, 128])
-    setup = qsetup.construct(system, model, args.ode, args.parameterization, xi, args)
+    setup, A, B = qsetup.construct(system, model, xi, args)
 
     key = jax.random.PRNGKey(args.seed)
     key, init_key = jax.random.split(key)
@@ -144,7 +146,7 @@ def main():
     print("!!!TODO: how to plot this nicely?")
     t = args.T * jnp.linspace(0, 1, args.BS, dtype=jnp.float32).reshape((-1, 1))
     key, path_key = jax.random.split(key)
-    eps = jax.random.normal(path_key, [args.BS, args.num_gaussians, setup.A.shape[-1]])
+    eps = jax.random.normal(path_key, [args.BS, args.num_gaussians, A.shape[-1]])
     mu_t, sigma_t, w_logits = state_q.apply_fn(state_q.params, t)
     w = jax.nn.softmax(w_logits)[None, :, None]
     samples = (w * (mu_t + sigma_t * eps)).sum(axis=1)
@@ -156,7 +158,7 @@ def main():
     # plt.show()
 
     key, init_key = jax.random.split(key)
-    x_0 = jnp.ones((args.num_paths, setup.A.shape[0]), dtype=jnp.float32) * setup.A
+    x_0 = jnp.ones((args.num_paths, A.shape[0]), dtype=jnp.float32) * A
     eps = jax.random.normal(key, shape=x_0.shape)
     x_0 += args.base_sigma * eps
 

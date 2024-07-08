@@ -1,0 +1,21 @@
+save_dir: ./out/toy/mueller_second_order_single_gaussian
+
+test_system: mueller_brown
+ode: second_order
+parameterization: diagonal
+T: 20.0
+xi: 1.4142135
+xi_pos_noise: 1e-3
+gamma: 1.0
+
+num_gaussians: 1
+trainable_weights: False
+base_sigma: 5e-3
+
+epochs: 10000
+BS: 512
+
+num_paths: 1000
+dt: 0.02
+
+log_plots: True

@@ -1,7 +1,7 @@
 import argparse
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 from flax import linen as nn
 from flax.training.train_state import TrainState
 
@@ -81,32 +81,37 @@ class QSetup(ABC):
         return self.system.B
 
 
-def construct(system: System, model: nn.module, ode: str, parameterization: str, xi: ArrayLike,
-              args: argparse.Namespace) -> QSetup:
+def construct(system: System, model: nn.module, xi: float, args: argparse.Namespace) -> Tuple[
+    QSetup, ArrayLike, ArrayLike]:
+    """
+    Construct a QSetup object based on the given arguments.
+    return: QSetup, A, B
+    """
     from training.setups import diagonal
 
-    if ode == 'first_order':
+    if args.ode == 'first_order':
         order = 'first'
         A = system.A
         B = system.B
-    elif ode == 'second_order':
+    elif args.ode == 'second_order':
         order = 'second'
 
         # We pad the A and B matrices with zeros to account for the velocity
-        A = jnp.hstack([system.A, jnp.zeros_like(system.A)])
-        B = jnp.hstack([system.B, jnp.zeros_like(system.B)])
+        A = jnp.hstack([system.A, jnp.zeros_like(system.A)], dtype=jnp.float32)
+        B = jnp.hstack([system.B, jnp.zeros_like(system.B)], dtype=jnp.float32)
 
         xi_velocity = jnp.ones_like(system.A) * xi
-        xi_pos = jnp.zeros_like(xi_velocity) + 1e-4
+        xi_pos = jnp.zeros_like(xi_velocity) + args.xi_pos_noise
 
-        xi = jnp.concatenate((xi_pos, xi_velocity), axis=-1)
+        xi = jnp.concatenate((xi_pos, xi_velocity), axis=-1, dtype=jnp.float32)
+        print("Setting xi to", xi)
     else:
-        raise ValueError(f"Unknown ODE: {ode}")
+        raise ValueError(f"Unknown ODE: {args.ode}")
 
-    if parameterization == 'diagonal':
+    if args.parameterization == 'diagonal':
         wrapped_module = diagonal.DiagonalWrapper(
             model, args.T, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
         )
-        return diagonal.DiagonalSetup(system, wrapped_module, xi, order, args.T)
+        return diagonal.DiagonalSetup(system, wrapped_module, xi, order, args.T), A, B
     else:
-        raise ValueError(f"Unknown parameterization: {parameterization}")
+        raise ValueError(f"Unknown parameterization: {args.parameterization}")

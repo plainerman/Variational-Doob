@@ -12,10 +12,7 @@ class DriftedSetup(QSetup, ABC):
     def __init__(self, system: System, model_q: nn.Module, xi: ArrayLike, order: str):
         """Either instantiate with first or second order drift."""
         assert order == 'first' or order == 'second', "Order must be either 'first' or 'second'."
-
         self.order = order
-        self._A = system.A
-        self._B = system.B
 
         super().__init__(system, model_q, xi)
 
@@ -27,11 +24,3 @@ class DriftedSetup(QSetup, ABC):
             ndim = self.system.A.shape[0]
 
             return jnp.hstack([_x[:, ndim:] / self.system.mass, -self.system.dUdx(_x[:, :ndim]) - _x[:, ndim:] * gamma])
-
-    @property
-    def A(self):
-        return self._A
-
-    @property
-    def B(self):
-        return self._B
