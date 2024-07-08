@@ -46,8 +46,8 @@ class DiagonalSetup(DriftedSetup):
     model_q: DiagonalWrapper
     T: float
 
-    def __init__(self, system: System, model_q: DiagonalWrapper, xi: ArrayLike, order: str, T: float):
-        super().__init__(system, model_q, xi, order)
+    def __init__(self, system: System, model_q: DiagonalWrapper, xi: ArrayLike, ode: str, T: float):
+        super().__init__(system, model_q, xi, ode)
         self.T = T
 
     def construct_loss(self, state_q: TrainState, gamma: float, BS: int) -> Callable[
@@ -89,7 +89,11 @@ class DiagonalSetup(DriftedSetup):
         _x = x_t[:, None, :]
 
         log_q_i = jax.scipy.stats.norm.logpdf(_x, _mu_t, _sigma_t).sum(-1)
-        relative_mixture_weights = jax.nn.softmax(_w_logits + log_q_i)[:, :, None]
+        if _w_logits.shape[0] == 1:
+            # This completely ignores the weights and saves some time
+            relative_mixture_weights = 1
+        else:
+            relative_mixture_weights = jax.nn.softmax(_w_logits + log_q_i)[:, :, None]
 
         _u_t = (relative_mixture_weights * (1 / _sigma_t * _dsigmadt * (_x - _mu_t) + _dmudt)).sum(axis=1)
 

@@ -21,6 +21,7 @@ def parse_args(parser: ArgumentParser):
     config_args = []
     for k, v in config.items():
         config_args.append(f'--{k}')
-        config_args.append(str(v))
+        for v_i in str(v).split():
+            config_args.append(v_i)
 
     return parser.parse_args(args=config_args + args)

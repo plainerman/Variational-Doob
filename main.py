@@ -45,6 +45,11 @@ parser.add_argument('--trainable_weights', type=bool, default=False,
                     help="Whether the weights of the mixture model are trainable.")
 parser.add_argument('--base_sigma', type=float, required=True, help="Sigma at time t=0 for A and B.")
 
+# model parameters
+parser.add_argument('--hidden_layers', nargs='+', type=int, help='The dimensions of the hidden layer of the MLP.', default=[128, 128, 128])
+parser.add_argument('--activation', type=str, default='swish', help="Activation function used in the model.")
+parser.add_argument('--skip_connections', type=bool, default=False, help="Whether to use skip connections in the model.")
+
 # training
 parser.add_argument('--epochs', type=int, default=10_000, help="Number of epochs the system is training for.")
 parser.add_argument('--BS', type=int, default=512, help="Batch size used for training.")
@@ -69,7 +74,6 @@ parser.add_argument('--log_plots', type=bool, default=False, const=True, nargs='
 def main():
     print("!!!!Next todos: plot ALDP")
     # TODO: internal coordinates
-    # TODO: neural network parameterization
 
     args = parse_args(parser)
     assert args.test_system or args.start and args.target, "Either specify a test system or provide start and target structures"
@@ -93,14 +97,30 @@ def main():
         kbT = 1.380649 * 6.02214076 * 1e-3 * args.temperature
         xi = jnp.sqrt(2 * kbT * args.gamma / system.mass)
 
+    # We initialize A and B
+    if args.ode == 'first_order':
+        A = system.A
+        B = system.B
+    elif args.ode == 'second_order':
+        # We pad the A and B matrices with zeros to account for the velocity
+        A = jnp.hstack([system.A, jnp.zeros_like(system.A)], dtype=jnp.float32)
+        B = jnp.hstack([system.B, jnp.zeros_like(system.B)], dtype=jnp.float32)
+
+        xi_velocity = jnp.ones_like(system.A) * xi
+        xi_pos = jnp.zeros_like(xi_velocity) + args.xi_pos_noise
+
+        xi = jnp.concatenate((xi_pos, xi_velocity), axis=-1, dtype=jnp.float32)
+    else:
+        raise ValueError(f"Unknown ODE: {args.ode}")
+
     # TODO: parameterize neural network?
     # TODO: if we find a nice way, maybe this can also include base_sigma
     # You can play around with any model here
     # The chosen setup will append a final layer so that the output is mu, sigma, and weights
     from model import MLP
 
-    model = MLP([128, 128, 128])
-    setup, A, B = qsetup.construct(system, model, xi, args)
+    model = MLP(args.hidden_layers, args.activation, args.skip_connections)
+    setup = qsetup.construct(system, model, xi, A, B, args)
 
     key = jax.random.PRNGKey(args.seed)
     key, init_key = jax.random.split(key)
