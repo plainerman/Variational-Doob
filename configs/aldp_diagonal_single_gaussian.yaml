@@ -14,9 +14,9 @@ num_gaussians: 1
 trainable_weights: False
 base_sigma: 1e-4
 
-#hidden_layers: 256 256 256 256 256 256 256
-#activation: relu
-#skip_connections: True
+hidden_layers: 256 256 256 256 256 256 256
+activation: relu
+resnet: True
 
 epochs: 50
 BS: 256

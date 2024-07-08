@@ -12,6 +12,7 @@ from utils.plot import show_or_save_fig, log_scale
 import os
 import sys
 import orbax.checkpoint as ocp
+from model import MLP
 
 parser = ArgumentParser()
 parser.add_argument('--save_dir', type=str, default=None, help="Specify a path where the data will be stored.")
@@ -43,12 +44,16 @@ parser.add_argument('--parameterization', type=str, choices=['diagonal', 'low_ra
 parser.add_argument('--num_gaussians', type=int, default=1, help="Number of gaussians in the mixture model.")
 parser.add_argument('--trainable_weights', type=bool, default=False,
                     help="Whether the weights of the mixture model are trainable.")
-parser.add_argument('--base_sigma', type=float, required=True, help="Sigma at time t=0 for A and B.")
 
 # model parameters
-parser.add_argument('--hidden_layers', nargs='+', type=int, help='The dimensions of the hidden layer of the MLP.', default=[128, 128, 128])
+parser.add_argument('--hidden_layers', nargs='+', type=int, help='The dimensions of the hidden layer of the MLP.',
+                    default=[128, 128, 128])
 parser.add_argument('--activation', type=str, default='swish', help="Activation function used in the model.")
-parser.add_argument('--skip_connections', type=bool, default=False, help="Whether to use skip connections in the model.")
+parser.add_argument('--resnet', type=bool, default=False,
+                    help="Whether to use skip connections in the model.")
+parser.add_argument('--internal_coordinates', type=bool, default=False,
+                    help="Whether to use internal coordinates for the system. This only works for alanine.")
+parser.add_argument('--base_sigma', type=float, required=True, help="Sigma at time t=0 for A and B.")
 
 # training
 parser.add_argument('--epochs', type=int, default=10_000, help="Number of epochs the system is training for.")
@@ -113,13 +118,10 @@ def main():
     else:
         raise ValueError(f"Unknown ODE: {args.ode}")
 
-    # TODO: parameterize neural network?
-    # TODO: if we find a nice way, maybe this can also include base_sigma
     # You can play around with any model here
     # The chosen setup will append a final layer so that the output is mu, sigma, and weights
-    from model import MLP
+    model = MLP(args.hidden_layers, args.activation, args.resnet)
 
-    model = MLP(args.hidden_layers, args.activation, args.skip_connections)
     setup = qsetup.construct(system, model, xi, A, B, args)
 
     key = jax.random.PRNGKey(args.seed)
