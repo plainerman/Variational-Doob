@@ -1,7 +1,7 @@
 save_dir: ./out/toy/mueller_single_gaussian
 
 test_system: mueller_brown
-ode: first_order
+ode: second_order
 parameterization: diagonal
 T: 275e-4
 xi: 5.0

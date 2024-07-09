@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from utils.args import parse_args
+from utils.args import parse_args, str2bool
 from systems import System
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
@@ -42,7 +42,7 @@ parser.add_argument('--parameterization', type=str, choices=['diagonal', 'low_ra
 
 # parameters of Q
 parser.add_argument('--num_gaussians', type=int, default=1, help="Number of gaussians in the mixture model.")
-parser.add_argument('--trainable_weights', type=bool, default=False,
+parser.add_argument('--trainable_weights', type=str2bool, nargs='?', const=True, default=False,
                     help="Whether the weights of the mixture model are trainable.")
 
 # model parameters
@@ -50,9 +50,9 @@ parser.add_argument('--hidden_layers', nargs='+', type=int, help='The dimensions
                     default=[128, 128, 128])
 parser.add_argument('--activation', type=str, default='swish', choices=['tanh', 'relu', 'swish'],
                     help="Activation function used after every layer.")
-parser.add_argument('--resnet', type=bool, default=False,
+parser.add_argument('--resnet', type=str2bool, nargs='?', const=True, default=False,
                     help="Whether to use skip connections in the model.")
-parser.add_argument('--internal_coordinates', type=bool, default=False,
+parser.add_argument('--internal_coordinates', type=str2bool, nargs='?', const=True, default=False,
                     help="Whether to use internal coordinates for the system. This only works for alanine.")
 parser.add_argument('--base_sigma', type=float, required=True, help="Sigma at time t=0 for A and B.")
 
@@ -62,7 +62,7 @@ parser.add_argument('--BS', type=int, default=512, help="Batch size used for tra
 parser.add_argument('--lr', type=float, default=1e-4, help="Learning rate")
 parser.add_argument('--force_clip', type=float, default=float('inf'), help="Clipping value for the force")
 
-parser.add_argument('--load', type=bool, default=False, const=True, nargs='?',
+parser.add_argument('--load', type=str2bool, nargs='?', const=True, default=False,
                     help="Continue training and load the model from the save_dir.")
 parser.add_argument('--save_interval', type=int, default=1_000, help="Interval at which the model is saved.")
 
@@ -73,7 +73,7 @@ parser.add_argument('--num_paths', type=int, default=1000, help="The number of p
 parser.add_argument('--dt', type=float, required=True)
 
 # plotting
-parser.add_argument('--log_plots', type=bool, default=False, const=True, nargs='?',
+parser.add_argument('--log_plots', type=str2bool, nargs='?', const=True, default=False,
                     help="Save plots in log scale where possible")
 
 
