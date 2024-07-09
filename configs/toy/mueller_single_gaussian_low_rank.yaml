@@ -1,8 +1,8 @@
-save_dir: ./out/toy/mueller_single_gaussian
+save_dir: ./out/toy/mueller_single_gaussian_low_rank
 
 test_system: mueller_brown
 ode: first_order
-parameterization: diagonal
+parameterization: low_rank
 T: 275e-4
 xi: 5.0
 gamma: 1.0

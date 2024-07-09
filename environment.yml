@@ -15,6 +15,7 @@ dependencies:
   - openpathsampling=1.6.1
   - jax=0.4.23
   - flax=0.8.3
+  - notebook=7.0.8
   - pip:
     - dmff @ git+https://github.com/deepmodeling/DMFF@v1.0.0
     - rdkit==2023.3.3

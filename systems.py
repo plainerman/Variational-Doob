@@ -50,7 +50,7 @@ class System:
         plot = partial(toy_plot_energy_surface,
                        U=U, states=list(zip(['A', 'B'], [A, B])), xlim=xlim, ylim=ylim, alpha=1.0
                        )
-        mass = jnp.array([1.0, 1.0])
+        mass = jnp.array([1.0, 1.0], dtype=jnp.float32)
         return cls(U, A, B, mass, plot, force_clip)
 
     @classmethod

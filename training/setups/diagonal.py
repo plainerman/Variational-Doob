@@ -34,9 +34,9 @@ class DiagonalWrapper(WrappedModule):
         )
 
         if self.trainable_weights:
-            w_logits = self.param('w_logits', nn.initializers.zeros_init(), (num_mixtures,))
+            w_logits = self.param('w_logits', nn.initializers.zeros_init(), (num_mixtures,), dtype=jnp.float32)
         else:
-            w_logits = jnp.zeros(num_mixtures)
+            w_logits = jnp.zeros(num_mixtures, dtype=jnp.float32)
 
         return mu, sigma, w_logits
 

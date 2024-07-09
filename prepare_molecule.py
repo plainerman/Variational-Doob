@@ -34,7 +34,7 @@ if __name__ == '__main__':
         for mass_ in mass:
             for _ in range(3):
                 new_mass.append(mass_)
-        mass = jnp.array(new_mass)
+        mass = jnp.array(new_mass, dtype=jnp.float32)
 
         # Initialize the potential energy with amber forcefields
         ff = Hamiltonian('amber14/protein.ff14SB.xml', 'amber14/tip3p.xml')

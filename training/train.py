@@ -20,16 +20,12 @@ def train(ckpt: Any, loss_fn: Callable, epochs: int, key: ArrayLike,
         _state_q = _state_q.apply_gradients(grads=grads)
         return _state_q, loss
 
-    log_loss = False
     with trange(ckpt['model'].step, epochs) as pbar:
         for i in pbar:
             key, loc_key = jax.random.split(key)
             ckpt['model'], loss = train_step(ckpt['model'], loc_key)
             if loss > 1e4:
-                log_loss = True
-
-            if log_loss:
-                pbar.set_postfix(log_loss=f"{jnp.log(loss):.4f}")
+                pbar.set_postfix(log_loss=f"{jnp.log10(loss):.4f}")
             else:
                 pbar.set_postfix(loss=f"{loss:.4f}")
             ckpt['losses'].append(loss.item())

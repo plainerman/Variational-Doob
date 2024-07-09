@@ -75,7 +75,7 @@ class QSetup(ABC):
 
 def construct(system: System, model: nn.module, xi: float, A: ArrayLike, B: ArrayLike,
               args: argparse.Namespace) -> QSetup:
-    from training.setups import diagonal
+    from training.setups import diagonal, lowrank
 
     transform = None
     if args.internal_coordinates:
@@ -87,5 +87,10 @@ def construct(system: System, model: nn.module, xi: float, A: ArrayLike, B: Arra
             model, args.T, transform, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
         )
         return diagonal.DiagonalSetup(system, wrapped_module, xi, args.ode, args.T)
+    elif args.parameterization == 'low_rank':
+        wrapped_module = lowrank.LowRankWrapper(
+            model, args.T, transform, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
+        )
+        return lowrank.LowRankSetup(system, wrapped_module, xi, args.ode, args.T)
     else:
         raise ValueError(f"Unknown parameterization: {args.parameterization}")

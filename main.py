@@ -125,7 +125,9 @@ def main():
 
     key = jax.random.PRNGKey(args.seed)
     key, init_key = jax.random.split(key)
+
     params_q = setup.model_q.init(init_key, jnp.zeros([args.BS, 1], dtype=jnp.float32))
+    print(params_q)
 
     optimizer_q = optax.adam(learning_rate=args.lr)
     state_q = train_state.TrainState.create(apply_fn=setup.model_q.apply, params=params_q, tx=optimizer_q)
@@ -146,6 +148,8 @@ def main():
         if checkpoint_manager.latest_step() is None:
             print("Warning: No checkpoint found.")
         else:
+            # TODO: fix this. At least for low rank it does not work
+
             print('Loading checkpoint:', checkpoint_manager.latest_step())
 
             state_restored = checkpoint_manager.restore(checkpoint_manager.latest_step())
@@ -165,12 +169,12 @@ def main():
     show_or_save_fig(args.save_dir, 'loss_plot.pdf')
 
     print("!!!TODO: how to plot this nicely?")
-    t = args.T * jnp.linspace(0, 1, args.BS, dtype=jnp.float32).reshape((-1, 1))
-    key, path_key = jax.random.split(key)
-    eps = jax.random.normal(path_key, [args.BS, args.num_gaussians, A.shape[-1]])
-    mu_t, sigma_t, w_logits = state_q.apply_fn(state_q.params, t)
-    w = jax.nn.softmax(w_logits)[None, :, None]
-    samples = (w * (mu_t + sigma_t * eps)).sum(axis=1)
+    # t = args.T * jnp.linspace(0, 1, args.BS, dtype=jnp.float32).reshape((-1, 1))
+    # key, path_key = jax.random.split(key)
+    # eps = jax.random.normal(path_key, [args.BS, args.num_gaussians, A.shape[-1]])
+    # mu_t, sigma_t, w_logits = state_q.apply_fn(state_q.params, t)
+    # w = jax.nn.softmax(w_logits)[None, :, None]
+    # samples = (w * (mu_t + sigma_t * eps)).sum(axis=1)
 
     # plot_energy_surface()
     # plt.scatter(samples[:, 0], samples[:, 1])
@@ -180,7 +184,7 @@ def main():
 
     key, init_key = jax.random.split(key)
     x_0 = jnp.ones((args.num_paths, A.shape[0]), dtype=jnp.float32) * A
-    eps = jax.random.normal(key, shape=x_0.shape)
+    eps = jax.random.normal(key, shape=x_0.shape, dtype=jnp.float32)
     x_0 += args.base_sigma * eps
 
     x_t_det = setup.sample_paths(state_q, x_0, args.dt, args.T, args.BS, None)
