@@ -46,6 +46,12 @@ parser.add_argument('--trainable_weights', type=str2bool, nargs='?', const=True,
                     help="Whether the weights of the mixture model are trainable.")
 
 # model parameters
+parser.add_argument('--model', type=str, choices=['mlp', 'spline'], default='mlp',
+                    help="The model that will be used. Note that spline will not work with all configurations.")
+
+parser.add_argument('--num_points', type=int, default=100, help="Number of points in the spline model.")
+
+# MLP arguments
 parser.add_argument('--hidden_layers', nargs='+', type=int, help='The dimensions of the hidden layer of the MLP.',
                     default=[128, 128, 128])
 parser.add_argument('--activation', type=str, default='swish', choices=['tanh', 'relu', 'swish'],
@@ -75,7 +81,7 @@ parser.add_argument('--dt', type=float, required=True)
 # plotting
 parser.add_argument('--log_plots', type=str2bool, nargs='?', const=True, default=False,
                     help="Save plots in log scale where possible")
-
+parser.add_argument('--extension', type=str, default='pdf', help="Extension of the saved plots.")
 
 def main():
     print("!!!!Next todos: plot ALDP")
@@ -120,7 +126,10 @@ def main():
 
     # You can play around with any model here
     # The chosen setup will append a final layer so that the output is mu, sigma, and weights
-    model = MLP(args.hidden_layers, args.activation, args.resnet)
+    model = None
+    if args.model == 'MLP':
+        model = MLP(args.hidden_layers, args.activation, args.resnet)
+
     setup = qsetup.construct(system, model, xi, A, B, args)
 
     key = jax.random.PRNGKey(args.seed)
@@ -166,7 +175,7 @@ def main():
         print("Warning: Loss contains NaNs")
     plt.plot(ckpt['losses'])
     log_scale(args.log_plots, False, True)
-    show_or_save_fig(args.save_dir, 'loss_plot.pdf')
+    show_or_save_fig(args.save_dir, 'loss_plot', args.extension)
 
     print("!!!TODO: how to plot this nicely?")
     # t = args.T * jnp.linspace(0, 1, args.BS, dtype=jnp.float32).reshape((-1, 1))
@@ -192,14 +201,14 @@ def main():
     if system.plot:
         # In case we have a second order integration scheme, we remove the velocity for plotting
         system.plot(title='Deterministic Paths', trajectories=x_t_det[:, :, :system.A.shape[0]])
-        show_or_save_fig(args.save_dir, 'paths_deterministic.pdf')
+        show_or_save_fig(args.save_dir, 'paths_deterministic', args.extension)
 
     key, path_key = jax.random.split(key)
     x_t_stoch = setup.sample_paths(state_q, x_0, args.dt, args.T, args.BS, path_key)
 
     if system.plot:
         system.plot(title='Stochastic Paths', trajectories=x_t_stoch[:, :, :system.A.shape[0]])
-        show_or_save_fig(args.save_dir, 'paths_stochastic.pdf')
+        show_or_save_fig(args.save_dir, 'paths_stochastic', args.extension)
 
 
 if __name__ == '__main__':

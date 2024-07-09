@@ -73,7 +73,7 @@ class QSetup(ABC):
         raise NotImplementedError
 
 
-def construct(system: System, model: nn.module, xi: float, A: ArrayLike, B: ArrayLike,
+def construct(system: System, model: Optional[nn.module], xi: float, A: ArrayLike, B: ArrayLike,
               args: argparse.Namespace) -> QSetup:
     from training.setups import diagonal, lowrank
 
@@ -83,14 +83,21 @@ def construct(system: System, model: nn.module, xi: float, A: ArrayLike, B: Arra
         transform = aldp.InternalCoordinateWrapper(system.A.reshape(1, -1))
 
     if args.parameterization == 'diagonal':
-        wrapped_module = diagonal.DiagonalWrapper(
+        if args.model == 'spline':
+            raise ValueError("Spline model is not supported with diagonal parameterization")
+        model = diagonal.DiagonalWrapper(
             model, args.T, transform, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
         )
-        return diagonal.DiagonalSetup(system, wrapped_module, xi, args.ode, args.T)
+        return diagonal.DiagonalSetup(system, model, xi, args.ode, args.T)
     elif args.parameterization == 'low_rank':
-        wrapped_module = lowrank.LowRankWrapper(
-            model, args.T, transform, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
-        )
-        return lowrank.LowRankSetup(system, wrapped_module, xi, args.ode, args.T)
+        if args.model == 'spline':
+            model = lowrank.LowRankSpline(
+                args.num_points, args.T, transform, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
+            )
+        else:
+            model = lowrank.LowRankWrapper(
+                model, args.T, transform, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
+            )
+        return lowrank.LowRankSetup(system, model, xi, args.ode, args.T)
     else:
         raise ValueError(f"Unknown parameterization: {args.parameterization}")

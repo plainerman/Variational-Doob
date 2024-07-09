@@ -1,15 +1,63 @@
-from dataclasses import dataclass
 from jax.typing import ArrayLike
 from flax import linen as nn
 import jax.numpy as jnp
-from typing import Union, Dict, Any, Callable, Tuple
+from typing import Union, Dict, Any, Callable, Tuple, Optional
 from flax.training.train_state import TrainState
 import jax
 from flax.typing import FrozenVariableDict
 from model.utils import WrappedModule
-from systems import System
 from training.setups.drift import DriftedSetup
 from training.utils import forward_and_derivatives
+
+interp = jax.vmap(jnp.interp, in_axes=(None, None, 1))
+
+
+class LowRankSpline(nn.Module):
+    n_points: int
+    T: float
+    transform: Optional[Callable[[Any], Any]]
+    A: ArrayLike
+    B: ArrayLike
+    num_mixtures: int
+    trainable_weights: bool
+    base_sigma: float
+
+    @nn.compact
+    def __call__(self, t):
+        print("WARNING: Mixtures for low rank not yet implemented!")
+        assert self.num_mixtures == 1, "Mixtures for low rank not yet implemented!"
+
+        ndim = self.A.shape[0]
+        t = t / self.T
+        t_grid = jnp.linspace(0, 1, self.n_points, dtype=jnp.float32)
+        S_0 = jnp.log(self.base_sigma) * jnp.eye(ndim, dtype=jnp.float32)
+        S_0_vec = S_0[jnp.tril_indices(ndim)]
+        mu_params = self.param('mu_params', lambda rng: jnp.linspace(self.A, self.B, self.n_points)[1:-1])
+        S_params = self.param('S_params', lambda rng: jnp.linspace(S_0_vec, S_0_vec, self.n_points)[1:-1])
+        y_grid = jnp.concatenate([self.A.reshape(1, -1), mu_params, self.B.reshape(1, -1)])
+        S_grid = jnp.concatenate([S_0_vec[None, :], S_params, S_0_vec[None, :]])
+
+        @jax.vmap
+        def get_tril(v):
+            a = jnp.zeros((ndim, ndim), dtype=jnp.float32)
+            a = a.at[jnp.tril_indices(ndim)].set(v)
+            return a
+
+        mu = interp(t.flatten(), t_grid, y_grid).T
+        S = interp(t.flatten(), t_grid, S_grid).T
+        S = get_tril(S)
+        S = jnp.tril(2 * jax.nn.sigmoid(S) - 1.0, k=-1) + jnp.eye(ndim, dtype=jnp.float32)[None, ...] * jnp.exp(S)
+
+        if self.trainable_weights:
+            w_logits = self.param('w_logits', nn.initializers.zeros_init(), (self.num_mixtures,), dtype=jnp.float32)
+        else:
+            w_logits = jnp.zeros(self.num_mixtures, dtype=jnp.float32)
+
+        out = (mu, S, w_logits)
+        if self.transform:
+            out = self.transform(out)
+
+        return out
 
 
 class LowRankWrapper(WrappedModule):
@@ -57,19 +105,10 @@ class LowRankWrapper(WrappedModule):
         else:
             w_logits = jnp.zeros(num_mixtures, dtype=jnp.float32)
 
-        print('mu.shape', mu.shape)
-        print('S.shape', S.shape)
-
         return mu, S, w_logits
 
 
-@dataclass
 class LowRankSetup(DriftedSetup):
-    model_q: LowRankWrapper
-
-    def __init__(self, system: System, model_q: LowRankWrapper, xi: ArrayLike, order: str, T: float):
-        super().__init__(system, model_q, xi, order, T)
-
     def construct_loss(self, state_q: TrainState, gamma: float, BS: int) -> Callable[
         [Union[FrozenVariableDict, Dict[str, Any]], ArrayLike], ArrayLike]:
         def loss_fn(params_q: Union[FrozenVariableDict, Dict[str, Any]], key: ArrayLike) -> ArrayLike:

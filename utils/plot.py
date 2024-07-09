@@ -14,9 +14,9 @@ def log_scale(log_plot: bool, x: bool, y: bool):
             plt.gca().set_yscale('log')
 
 
-def show_or_save_fig(save_dir: Optional[str], name: str):
+def show_or_save_fig(save_dir: Optional[str], name: str, extension: str):
     if save_dir is not None:
-        plt.savefig(f'{save_dir}/{name}', bbox_inches='tight')
+        plt.savefig(f'{save_dir}/{name}.{extension}', bbox_inches='tight')
         plt.clf()
     else:
         plt.show()
