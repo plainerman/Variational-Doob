@@ -78,7 +78,6 @@ parser.add_argument('--log_plots', type=bool, default=False, const=True, nargs='
 
 def main():
     print("!!!!Next todos: plot ALDP")
-    # TODO: internal coordinates
 
     args = parse_args(parser)
     assert args.test_system or args.start and args.target, "Either specify a test system or provide start and target structures"
