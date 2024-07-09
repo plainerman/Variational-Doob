@@ -9,6 +9,7 @@ from jax.typing import ArrayLike
 import jax.numpy as jnp
 import jax
 from tqdm import trange
+import utils.aldp as aldp
 
 
 @dataclass
@@ -76,9 +77,14 @@ def construct(system: System, model: nn.module, xi: float, A: ArrayLike, B: Arra
               args: argparse.Namespace) -> QSetup:
     from training.setups import diagonal
 
+    transform = None
+    if args.internal_coordinates:
+        # Initialize transform with the initial state (without second order elements)
+        transform = aldp.InternalCoordinateWrapper(system.A.reshape(1, -1))
+
     if args.parameterization == 'diagonal':
         wrapped_module = diagonal.DiagonalWrapper(
-            model, args.T, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
+            model, args.T, transform, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
         )
         return diagonal.DiagonalSetup(system, wrapped_module, xi, args.ode, args.T)
     else:
