@@ -8,11 +8,13 @@ from jax.typing import ArrayLike
 
 class DriftedSetup(QSetup, ABC):
     """A QSetup that has a drift term. This drift term can be either first or second order."""
+    T: float
 
-    def __init__(self, system: System, model_q: nn.Module, xi: ArrayLike, ode: str):
+    def __init__(self, system: System, model_q: nn.Module, xi: ArrayLike, ode: str, T: float):
         """Either instantiate with first or second order drift."""
         assert ode == 'first_order' or ode == 'second_order', "Order must be either 'first_order' or 'second_order'."
         self.ode = ode
+        self.T = T
 
         super().__init__(system, model_q, xi)
 

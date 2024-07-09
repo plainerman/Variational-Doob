@@ -44,11 +44,9 @@ class DiagonalWrapper(WrappedModule):
 @dataclass
 class DiagonalSetup(DriftedSetup):
     model_q: DiagonalWrapper
-    T: float
 
     def __init__(self, system: System, model_q: DiagonalWrapper, xi: ArrayLike, ode: str, T: float):
-        super().__init__(system, model_q, xi, ode)
-        self.T = T
+        super().__init__(system, model_q, xi, ode, T)
 
     def construct_loss(self, state_q: TrainState, gamma: float, BS: int) -> Callable[
         [Union[FrozenVariableDict, Dict[str, Any]], ArrayLike], ArrayLike]:

@@ -48,7 +48,8 @@ parser.add_argument('--trainable_weights', type=bool, default=False,
 # model parameters
 parser.add_argument('--hidden_layers', nargs='+', type=int, help='The dimensions of the hidden layer of the MLP.',
                     default=[128, 128, 128])
-parser.add_argument('--activation', type=str, default='swish', help="Activation function used in the model.")
+parser.add_argument('--activation', type=str, default='swish', choices=['tanh', 'relu', 'swish'],
+                    help="Activation function used after every layer.")
 parser.add_argument('--resnet', type=bool, default=False,
                     help="Whether to use skip connections in the model.")
 parser.add_argument('--internal_coordinates', type=bool, default=False,
