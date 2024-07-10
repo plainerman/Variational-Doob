@@ -128,7 +128,7 @@ def main():
     # You can play around with any model here
     # The chosen setup will append a final layer so that the output is mu, sigma, and weights
     model = None
-    if args.model == 'MLP':
+    if args.model == 'mlp':
         model = MLP(args.hidden_layers, args.activation, args.resnet)
 
     setup = qsetup.construct(system, model, xi, A, B, args)
