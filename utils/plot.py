@@ -3,6 +3,7 @@ from typing import Optional, Tuple, Callable
 from jax.typing import ArrayLike
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+from systems import System
 from tps.plot import PeriodicPathHistogram
 
 
@@ -21,6 +22,22 @@ def show_or_save_fig(save_dir: Optional[str], name: str, extension: str):
     else:
         plt.show()
 
+
+def plot_energy(system: System, trajectories: [ArrayLike], log_plot: bool):
+    plt.title('Energy of the trajectory')
+    plt.xlabel('Time')
+    plt.ylabel('Energy')
+    energies = jnp.array([system.U(t) for t in trajectories])
+
+    if log_plot:
+        min_energy = jnp.min(energies)
+        if min_energy < 0:
+            energies -= min_energy
+            plt.ylabel('Energy (shifted)')
+
+    log_scale(log_plot, x=False, y=True)
+    for e in energies:
+        plt.plot(e)
 
 def toy_plot_energy_surface(U, xlim: ArrayLike, ylim: ArrayLike,
                             bins: int = 150, levels: int = 30, *args, **kwargs):

@@ -1,6 +1,5 @@
 from functools import partial
 from utils.angles import phi_psi_from_mdtraj
-from utils.plot import toy_plot_energy_surface, plot_cv
 import potentials
 import jax
 import jax.numpy as jnp
@@ -20,10 +19,10 @@ class System:
                  force_clip: float):
         assert A.shape == B.shape == mass.shape
 
-        self.U = U
+        self.U = jax.jit(U)
 
         dUdx = jax.grad(lambda _x: U(_x).sum())
-        self.dUdx = jax.jit(jax.jit(lambda _x: jnp.clip(dUdx(_x), -force_clip, force_clip)))
+        self.dUdx = jax.jit(lambda _x: jnp.clip(dUdx(_x), -force_clip, force_clip))
 
         self.A, self.B = A, B
         self.mass = mass
@@ -47,6 +46,7 @@ class System:
         else:
             raise ValueError(f"Unknown system: {name}")
 
+        from utils.plot import toy_plot_energy_surface
         plot = partial(toy_plot_energy_surface,
                        U=U, states=list(zip(['A', 'B'], [A, B])), xlim=xlim, ylim=ylim, alpha=1.0
                        )
@@ -91,6 +91,8 @@ class System:
         elif cv == 'phi_psi':
             mdtraj_topology = md.Topology.from_openmm(A_pdb.topology)
             phis_psis = phi_psi_from_mdtraj(mdtraj_topology)
+
+            from utils.plot import plot_cv
 
             plot = partial(plot_cv,
                            cv=phis_psis,

@@ -8,7 +8,7 @@ from flax.training import train_state
 import optax
 import training.qsetup as qsetup
 from training.train import train
-from utils.plot import show_or_save_fig, log_scale
+from utils.plot import show_or_save_fig, log_scale, plot_energy
 import os
 import sys
 import orbax.checkpoint as ocp
@@ -82,6 +82,7 @@ parser.add_argument('--dt', type=float, required=True)
 parser.add_argument('--log_plots', type=str2bool, nargs='?', const=True, default=False,
                     help="Save plots in log scale where possible")
 parser.add_argument('--extension', type=str, default='pdf', help="Extension of the saved plots.")
+
 
 def main():
     print("!!!!Next todos: plot ALDP")
@@ -173,6 +174,9 @@ def main():
 
     if jnp.isnan(jnp.array(ckpt['losses'])).any():
         print("Warning: Loss contains NaNs")
+    plt.title('Loss')
+    plt.xlabel('Steps')
+    plt.ylabel('Loss')
     plt.plot(ckpt['losses'])
     log_scale(args.log_plots, False, True)
     show_or_save_fig(args.save_dir, 'loss_plot', args.extension)
@@ -200,14 +204,24 @@ def main():
 
     if system.plot:
         # In case we have a second order integration scheme, we remove the velocity for plotting
-        system.plot(title='Deterministic Paths', trajectories=x_t_det[:, :, :system.A.shape[0]])
+        x_t_det_no_vel = x_t_det[:, :, :system.A.shape[0]]
+
+        plot_energy(system, [x_t_det_no_vel[0], x_t_det_no_vel[-1]], args.log_plots)
+        show_or_save_fig(args.save_dir, 'path_energy_deterministic', args.extension)
+
+        system.plot(title='Deterministic Paths', trajectories=x_t_det_no_vel)
         show_or_save_fig(args.save_dir, 'paths_deterministic', args.extension)
 
     key, path_key = jax.random.split(key)
     x_t_stoch = setup.sample_paths(state_q, x_0, args.dt, args.T, args.BS, path_key)
 
     if system.plot:
-        system.plot(title='Stochastic Paths', trajectories=x_t_stoch[:, :, :system.A.shape[0]])
+        x_t_stoch_no_vel = x_t_stoch[:, :, :system.A.shape[0]]
+
+        plot_energy(system, [x_t_stoch_no_vel[0], x_t_stoch_no_vel[-1]], args.log_plots)
+        show_or_save_fig(args.save_dir, 'path_energy_stochastic', args.extension)
+
+        system.plot(title='Stochastic Paths', trajectories=x_t_stoch_no_vel)
         show_or_save_fig(args.save_dir, 'paths_stochastic', args.extension)
 
 
