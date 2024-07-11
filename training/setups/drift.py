@@ -27,5 +27,5 @@ class DriftedSetup(QSetup, ABC):
 
             return jnp.hstack([
                 _x[:, ndim:],
-                (-self.system.dUdx(_x[:, :ndim]) - _x[:, ndim:] * gamma) / self.system.mass
+                -self.system.dUdx(_x[:, :ndim]) / self.system.mass - _x[:, ndim:] * gamma
             ])
