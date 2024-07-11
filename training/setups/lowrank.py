@@ -14,8 +14,9 @@ def compute_spline_coefficients(x_knots, y_knots):
     n = len(x_knots) - 1
     h = jnp.diff(x_knots)
     b = (jnp.diff(y_knots, axis=0).T / h).T
+
+    u = jnp.zeros(n + 1, dtype=jnp.float32)
     v = jnp.zeros((n + 1,) + y_knots.shape[1:], dtype=jnp.float32)
-    u = jnp.zeros((n + 1,), dtype=jnp.float32)
 
     u = u.at[1:n].set(2 * (h[:-1] + h[1:]))
     v = v.at[1:n].set(6 * (b[1:] - b[:-1]))
@@ -23,13 +24,15 @@ def compute_spline_coefficients(x_knots, y_knots):
     u = u.at[0].set(1)
     u = u.at[n].set(1)
 
-    for i in range(1, n):
-        u = u.at[i].set(u[i] - (h[i - 1] ** 2) / u[i - 1])
-        v = v.at[i].set(v[i] - (h[i - 1] * v[i - 1]) / u[i - 1])
+    # Forward elimination
+    factor = (h[:-1] ** 2) / u[:-2]
+    u = u.at[1:n].add(-factor)
+    v = v.at[1:n].add(-factor[:, None] * v[:-2])
 
+    # Backward substitution
+    factor = (h[1:] / u[1:n])
     m = jnp.zeros_like(v)
-    for i in range(n - 1, 0, -1):
-        m = m.at[i].set((v[i] - h[i] * m[i + 1]) / u[i])
+    m = m.at[1:n].set((v[1:n] - factor[:, None] * v[2:]) / u[1:n][:, None])
 
     return m
 

@@ -165,7 +165,7 @@ def main():
             print('Loading checkpoint:', checkpoint_manager.latest_step())
 
             state_restored = checkpoint_manager.restore(checkpoint_manager.latest_step())
-            # The model needs to be casted to a trainstate object
+            # The model needs to be cast to a trainstate object
             state_restored['model'] = checkpoint_manager.restore(checkpoint_manager.latest_step(), items=ckpt)['model']
             ckpt = state_restored
 
