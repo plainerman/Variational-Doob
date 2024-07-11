@@ -22,7 +22,7 @@ def U(xs, beta=1.0):
 
 dUdx_fn = jax.jit(jax.grad(lambda _x: U(_x).sum()))
 
-plot_energy_surface = partial(toy_plot_energy_surface, U, [], jnp.array((-1, 1)), jnp.array((-1, 1)), levels=20)
+plot_energy_surface = partial(toy_plot_energy_surface, U, [], xlim=jnp.array((-1, 1)), ylim=jnp.array((-1, 1)), levels=20)
 
 
 def create_mlp_q(A, B, T, num_mixtures):
@@ -40,6 +40,8 @@ def create_mlp_q(A, B, T, num_mixtures):
             h = nn.swish(h)
             h = nn.Dense(128)(h)
             h = nn.swish(h)
+            # IMPORTANT: HERE WE USE 2 * num_mixtures + num_mixtures
+            # so we just predict a single sigma for each dimension (and mixture)
             h = nn.Dense(2 * num_mixtures + num_mixtures)(h)
 
             mu = (((1 - t) * A)[:, None, :] + (t * B)[:, None, :] +
