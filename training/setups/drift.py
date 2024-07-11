@@ -25,4 +25,7 @@ class DriftedSetup(QSetup, ABC):
             # number of dimensions without velocity
             ndim = self.system.A.shape[0]
 
-            return jnp.hstack([_x[:, ndim:] / self.system.mass, -self.system.dUdx(_x[:, :ndim]) - _x[:, ndim:] * gamma])
+            return jnp.hstack([
+                _x[:, ndim:],
+                (-self.system.dUdx(_x[:, :ndim]) - _x[:, ndim:] * gamma) / self.system.mass
+            ])
