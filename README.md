@@ -46,7 +46,7 @@ python main.py --config configs/toy/dual_channel_two_gaussian.yaml
 for the toy examples and
 
 ```bash
-python main.py --cconfig configs/aldp_diagonal_single_gaussian.yaml
+python main.py --config configs/aldp_diagonal_single_gaussian.yaml
 ```
 
 for real molecular systems.
