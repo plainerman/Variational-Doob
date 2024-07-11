@@ -2,14 +2,14 @@ import jax.numpy as jnp
 from skimage.draw import line
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-
+import numpy as np
 
 class PeriodicPathHistogram:
     def __init__(self, bins=250, interpolate=True, scale=jnp.pi):
         self.bins = bins
         self.interpolate = interpolate
         self.scale = scale
-        self.hist = jnp.zeros((bins, bins))
+        self.hist = jnp.zeros((bins, bins), dtype=jnp.float32)
 
     def add_paths(self, paths: list[jnp.ndarray], factors: list[float] = None):
         for path, factor in tqdm(zip(paths, factors or [1] * len(paths)), total=len(paths)):
@@ -33,7 +33,7 @@ class PeriodicPathHistogram:
                 rr = jnp.concatenate([rr, [point[1]]])
 
         # we only add it once for each path, so that overlapping segments are not counted multiple times
-        self.hist[rr, cc] += factor
+        self.hist = self.hist.at[rr, cc].set(self.hist[rr, cc] + factor)
 
     def _add_path_segment_periodic(self, start: jnp.ndarray, stop: jnp.ndarray):
         start = jnp.array(start)
@@ -82,7 +82,7 @@ class PeriodicPathHistogram:
         return rr, cc
 
     def plot(self, density=False, cmin=None, cmax=None, **kwargs):
-        H = self.hist.copy()
+        H = np.array(self.hist)  # we convert it to a numpy array so that we can set values to None
         if density:
             H /= H.sum() * (2 * self.scale / self.bins) ** 2
 

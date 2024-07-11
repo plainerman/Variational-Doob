@@ -39,6 +39,7 @@ def plot_energy(system: System, trajectories: [ArrayLike], log_plot: bool):
     for e in energies:
         plt.plot(e)
 
+
 def toy_plot_energy_surface(U, xlim: ArrayLike, ylim: ArrayLike,
                             bins: int = 150, levels: int = 30, *args, **kwargs):
     x, y = jnp.linspace(xlim[0], xlim[1], bins), jnp.linspace(ylim[0], ylim[1], bins)
@@ -53,7 +54,6 @@ def toy_plot_energy_surface(U, xlim: ArrayLike, ylim: ArrayLike,
 
 def plot_cv(cv: Callable[[ArrayLike], ArrayLike], points: Optional[ArrayLike] = None,
             trajectories: Optional[ArrayLike] = None, *args, **kwargs):
-    print("!!! TODO: We should also plot the histogram of the energy function")
     if trajectories is None:
         cv_trajectories = None
     else:
@@ -69,6 +69,8 @@ def plot_2d(
         trajectories: Optional[ArrayLike] = None,
         periodic: bool = False,
         title: Optional[str] = None, xlabel: Optional[str] = None, ylabel: Optional[str] = None,
+        xticks: Optional[ArrayLike] = None, yticks: Optional[ArrayLike] = None,
+        xticklabels: Optional[list[str]] = None, yticklabels: Optional[list[str]] = None,
         square: bool = False,
         alpha: float = 0.7, radius: float = 0.1
 ):
@@ -84,12 +86,23 @@ def plot_2d(
 
     if trajectories is not None and len(trajectories) > 0:
         if periodic:
-            _plot_periodic_trajectories(trajectories, bins)
+            assert jnp.allclose(xlim[1] - xlim[0], ylim[1] - ylim[0]), "Periodic plot requires square plot"
+            _plot_periodic_trajectories(trajectories, bins, scale=jnp.pi)
         else:
             _plot_trajectories(trajectories, bins, xlim, ylim)
 
-    plt.xticks([])
-    plt.yticks([])
+    if xticks is None:
+        xticks = []
+    if yticks is None:
+        yticks = []
+
+    plt.xticks(xticks)
+    plt.yticks(yticks)
+
+    if xticklabels is not None:
+        plt.gca().set_xticklabels(xticklabels)
+    if yticklabels is not None:
+        plt.gca().set_yticklabels(yticklabels)
 
     if points is not None:
         for p in points:
@@ -105,8 +118,8 @@ def plot_2d(
         plt.gca().set_aspect('equal', adjustable='box')
 
 
-def _plot_periodic_trajectories(trajectories: ArrayLike, bins: int):
-    path_hist = PeriodicPathHistogram(bins)
+def _plot_periodic_trajectories(trajectories: ArrayLike, bins: int, scale: float = jnp.pi):
+    path_hist = PeriodicPathHistogram(bins, scale=scale)
     for path in tqdm(trajectories, desc='Adding paths to histogram', total=len(trajectories)):
         path_hist.add_path(jnp.array(path))
 

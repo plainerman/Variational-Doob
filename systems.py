@@ -93,12 +93,19 @@ class System:
             phis_psis = phi_psi_from_mdtraj(mdtraj_topology)
 
             from utils.plot import plot_cv
-
             plot = partial(plot_cv,
                            cv=phis_psis,
                            bins=100, states=list(zip(['A', 'B'], [phis_psis(A[None]), phis_psis(B[None])])),
                            xlim=jnp.array((-jnp.pi, jnp.pi)), ylim=jnp.array((-jnp.pi, jnp.pi)),
+                           xlabel=r'$\phi$', ylabel=r'$\psi',
+                           xticks=[-jnp.pi, -jnp.pi / 2, 0, jnp.pi / 2, jnp.pi],
+                           xticklabels=[r'$-\pi$', r'$-\frac {\pi} {2}$', '0', r'$\frac {\pi} {2}$', r'$\pi$'],
+                           yticks=[-jnp.pi, -jnp.pi / 2, 0, jnp.pi / 2, jnp.pi],
+                           yticklabels=[r'$-\pi$', r'$-\frac {\pi} {2}$', '0', r'$\frac {\pi} {2}$', r'$\pi$'],
+                           square=True, periodic=True,
                            )
+
+
         else:
             raise ValueError(f"Unknown cv: {cv}")
 
