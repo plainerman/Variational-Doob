@@ -49,7 +49,9 @@ parser.add_argument('--trainable_weights', type=str2bool, nargs='?', const=True,
 parser.add_argument('--model', type=str, choices=['mlp', 'spline'], default='mlp',
                     help="The model that will be used. Note that spline will not work with all configurations.")
 
+# Spline arguments
 parser.add_argument('--num_points', type=int, default=100, help="Number of points in the spline model.")
+parser.add_argument('--spline_mode', type=str, choices=['linear', 'cubic'], default='linear')
 
 # MLP arguments
 parser.add_argument('--hidden_layers', nargs='+', type=int, help='The dimensions of the hidden layer of the MLP.',

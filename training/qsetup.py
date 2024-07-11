@@ -92,7 +92,7 @@ def construct(system: System, model: Optional[nn.module], xi: float, A: ArrayLik
     elif args.parameterization == 'low_rank':
         if args.model == 'spline':
             model = lowrank.LowRankSpline(
-                args.num_points, args.T, transform, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
+                args.num_points, args.spline_mode, args.T, transform, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
             )
         else:
             model = lowrank.LowRankWrapper(

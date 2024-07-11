@@ -9,11 +9,56 @@ from model.utils import WrappedModule
 from training.setups.drift import DriftedSetup
 from training.utils import forward_and_derivatives
 
+
+def compute_spline_coefficients(x_knots, y_knots):
+    n = len(x_knots) - 1
+    h = jnp.diff(x_knots)
+    b = (jnp.diff(y_knots, axis=0).T / h).T
+    v = jnp.zeros((n + 1,) + y_knots.shape[1:], dtype=jnp.float32)
+    u = jnp.zeros((n + 1,), dtype=jnp.float32)
+
+    u = u.at[1:n].set(2 * (h[:-1] + h[1:]))
+    v = v.at[1:n].set(6 * (b[1:] - b[:-1]))
+
+    u = u.at[0].set(1)
+    u = u.at[n].set(1)
+
+    for i in range(1, n):
+        u = u.at[i].set(u[i] - (h[i - 1] ** 2) / u[i - 1])
+        v = v.at[i].set(v[i] - (h[i - 1] * v[i - 1]) / u[i - 1])
+
+    m = jnp.zeros_like(v)
+    for i in range(n - 1, 0, -1):
+        m = m.at[i].set((v[i] - h[i] * m[i + 1]) / u[i])
+
+    return m
+
+
+def evaluate_cubic_spline(x, x_knots, y_knots, m):
+    i = jnp.searchsorted(x_knots, x) - 1
+    i = jnp.clip(i, 0, len(x_knots) - 2)  # Ensure i is within bounds
+    h = x_knots[i + 1] - x_knots[i]
+    A = (x_knots[i + 1] - x) / h
+    B = (x - x_knots[i]) / h
+    C = (1 / 6) * (A ** 3 - A) * h ** 2
+    D = (1 / 6) * (B ** 3 - B) * h ** 2
+    y = A * y_knots[i] + B * y_knots[i + 1] + C * m[i] + D * m[i + 1]
+    return y
+
+
+def compute_cubic_spline(t, x_knots, y_knots):
+    m = compute_spline_coefficients(x_knots, y_knots)
+    return evaluate_cubic_spline(t, x_knots, y_knots, m)
+
+
+vectorized_cubic_spline = jax.vmap(compute_cubic_spline, in_axes=(0, None, None))
+
 interp = jax.vmap(jnp.interp, in_axes=(None, None, 1))
 
 
 class LowRankSpline(nn.Module):
     n_points: int
+    interpolation: str
     T: float
     transform: Optional[Callable[[Any], Any]]
     A: ArrayLike
@@ -43,8 +88,15 @@ class LowRankSpline(nn.Module):
             a = a.at[jnp.tril_indices(ndim)].set(v)
             return a
 
-        mu = interp(t.flatten(), t_grid, y_grid).T
-        S = interp(t.flatten(), t_grid, S_grid).T
+        if self.interpolation == 'cubic':
+            mu = vectorized_cubic_spline(t.flatten(), t_grid, y_grid)
+            S = vectorized_cubic_spline(t.flatten(), t_grid, S_grid)
+        elif self.interpolation == 'linear':
+            mu = interp(t.flatten(), t_grid, y_grid).T
+            S = interp(t.flatten(), t_grid, S_grid).T
+        else:
+            raise ValueError(f"Interpolation method {self.interpolation} not recognized.")
+
         S = get_tril(S)
         S = jnp.tril(2 * jax.nn.sigmoid(S) - 1.0, k=-1) + jnp.eye(ndim, dtype=jnp.float32)[None, ...] * jnp.exp(S)
 
