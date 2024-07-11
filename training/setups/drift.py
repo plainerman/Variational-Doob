@@ -20,7 +20,7 @@ class DriftedSetup(QSetup, ABC):
 
     def _drift(self, _x: ArrayLike, gamma: float) -> ArrayLike:
         if self.ode == 'first_order':
-            return -self.system.dUdx(_x / (gamma * self.system.mass))
+            return -self.system.dUdx(_x) / (gamma * self.system.mass)
         else:
             # number of dimensions without velocity
             ndim = self.system.A.shape[0]
