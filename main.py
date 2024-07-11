@@ -47,7 +47,7 @@ parser.add_argument('--trainable_weights', type=str2bool, nargs='?', const=True,
 
 # model parameters
 parser.add_argument('--model', type=str, choices=['mlp', 'spline'], default='mlp',
-                    help="The model that will be used. Note that spline will not work with all configurations.")
+                    help="The model that will be used. Note that spline might not work with all configurations.")
 
 # Spline arguments
 parser.add_argument('--num_points', type=int, default=100, help="Number of points in the spline model.")

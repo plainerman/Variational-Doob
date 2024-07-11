@@ -84,10 +84,14 @@ def construct(system: System, model: Optional[nn.module], xi: float, A: ArrayLik
 
     if args.parameterization == 'diagonal':
         if args.model == 'spline':
-            raise ValueError("Spline model is not supported with diagonal parameterization")
-        model = diagonal.DiagonalWrapper(
-            model, args.T, transform, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
-        )
+            model = diagonal.DiagonalSpline(
+                args.num_points, args.spline_mode, args.T, transform, A, B, args.num_gaussians, args.trainable_weights,
+                args.base_sigma
+            )
+        else:
+            model = diagonal.DiagonalWrapper(
+                model, args.T, transform, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
+            )
         return diagonal.DiagonalSetup(system, model, xi, args.ode, args.T)
     elif args.parameterization == 'low_rank':
         if args.model == 'spline':

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from jax.typing import ArrayLike
 from flax import linen as nn
 import jax.numpy as jnp
-from typing import Union, Dict, Any, Callable
+from typing import Union, Dict, Any, Callable, Optional
 from flax.training.train_state import TrainState
 import jax
 from flax.typing import FrozenVariableDict
@@ -10,6 +10,61 @@ from model.utils import WrappedModule
 from systems import System
 from training.setups.drift import DriftedSetup
 from training.utils import forward_and_derivatives
+from utils.splines import vectorized_cubic_spline, vectorized_linear_spline
+
+
+class DiagonalSpline(nn.Module):
+    n_points: int
+    interpolation: str
+    T: float
+    transform: Optional[Callable[[Any], Any]]
+    A: ArrayLike
+    B: ArrayLike
+    num_mixtures: int
+    trainable_weights: bool
+    base_sigma: float
+
+    @nn.compact
+    def __call__(self, t):
+        ndim = self.A.shape[0]
+        BS = t.shape[0]
+        t = t / self.T
+        t_grid = jnp.linspace(0, 1, self.n_points, dtype=jnp.float32)
+
+        A = (jnp.ones((self.num_mixtures, ndim), dtype=self.A.dtype) * self.A).reshape(-1)
+        B = (jnp.ones((self.num_mixtures, ndim), dtype=self.A.dtype) * self.B).reshape(-1)
+
+        base_sigma = self.base_sigma * jnp.ones((self.num_mixtures * ndim), dtype=self.A.dtype)
+        base_sigma = jnp.log(base_sigma)
+
+        mu_params = self.param('mu_params', lambda rng: jnp.linspace(A, B, self.n_points)[1:-1])
+        sigma_params = self.param('sigma_params', lambda rng: jnp.linspace(base_sigma, base_sigma, self.n_points)[1:-1])
+
+        y_grid = jnp.concatenate([A.reshape(1, -1), mu_params, B.reshape(1, -1)])
+        sigma_grid = jnp.concatenate([base_sigma.reshape(1, -1), sigma_params, base_sigma.reshape(1, -1)])
+
+        if self.interpolation == 'cubic':
+            mu = vectorized_cubic_spline(t.flatten(), t_grid, y_grid)
+            sigma = vectorized_cubic_spline(t.flatten(), t_grid, sigma_grid)
+        elif self.interpolation == 'linear':
+            mu = vectorized_linear_spline(t.flatten(), t_grid, y_grid)
+            sigma = vectorized_linear_spline(t.flatten(), t_grid, sigma_grid)
+        else:
+            raise ValueError(f"Interpolation method {self.interpolation} not recognized.")
+
+        mu = mu.reshape(BS, self.num_mixtures, ndim)
+        sigma = jnp.exp(sigma.reshape(BS, self.num_mixtures, ndim))
+
+        if self.trainable_weights:
+            w_logits = self.param('w_logits', nn.initializers.zeros_init(), (self.num_mixtures,), dtype=jnp.float32)
+        else:
+            w_logits = jnp.zeros(self.num_mixtures, dtype=jnp.float32)
+
+        out = (mu, sigma, w_logits)
+        if self.transform:
+            out = self.transform(out)
+
+        return out
 
 
 class DiagonalWrapper(WrappedModule):
