@@ -16,7 +16,7 @@ import mdtraj as md
 
 class System:
     def __init__(self, U: Callable[[ArrayLike], ArrayLike], A: ArrayLike, B: ArrayLike, mass: ArrayLike, plot,
-                 force_clip: float):
+                 force_clip: float, mdtraj_topology: Optional[md.Topology] = None):
         assert A.shape == B.shape == mass.shape
 
         self.U = jax.jit(U)
@@ -28,6 +28,7 @@ class System:
         self.mass = mass
 
         self.plot = plot
+        self.mdtraj_topology = mdtraj_topology
 
     @classmethod
     def from_name(cls, name: str, force_clip: float) -> Self:
@@ -109,4 +110,4 @@ class System:
         else:
             raise ValueError(f"Unknown cv: {cv}")
 
-        return cls(U, A, B, mass, plot, force_clip)
+        return cls(U, A, B, mass, plot, force_clip, md.Topology.from_openmm(A_pdb.topology))
