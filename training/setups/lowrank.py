@@ -74,8 +74,13 @@ class LowRankWrapper(WrappedModule):
     trainable_weights: bool
     base_sigma: float
 
-    def _pre_process(self, t: ArrayLike) -> Tuple[Tuple[ArrayLike], Tuple[ArrayLike, ArrayLike, ArrayLike]]:
+    @nn.compact
+    def _post_process(self, h: ArrayLike, t: ArrayLike):
         ndim = self.A.shape[0]
+        num_mixtures = self.num_mixtures
+
+        print("WARNING: Mixtures for low rank not yet implemented!")
+        assert num_mixtures == 1, "Mixtures for low rank not yet implemented!"
 
         h_mu = (1 - t) * self.A + t * self.B
         S_0 = jnp.eye(ndim, dtype=jnp.float32)
@@ -83,15 +88,6 @@ class LowRankWrapper(WrappedModule):
                                 self.base_sigma * jnp.ones((ndim // 2, 1), dtype=jnp.float32)])
         S_0 = S_0[None, ...]
         h_S = (1 - 2 * t * (1 - t))[..., None] * S_0
-        return (jnp.hstack([h_mu, h_S.reshape(-1, ndim * ndim), t]),), (h_mu, h_S, t)
-
-    @nn.compact
-    def _post_process(self, h: ArrayLike, h_mu: ArrayLike, h_S: ArrayLike, t: ArrayLike):
-        ndim = self.A.shape[0]
-        num_mixtures = self.num_mixtures
-
-        print("WARNING: Mixtures for low rank not yet implemented!")
-        assert num_mixtures == 1, "Mixtures for low rank not yet implemented!"
 
         # TODO: I think we can just multiply num_mixtures here and then do reshaping
         h = nn.Dense(ndim + ndim * (ndim + 1) // 2)(h)

@@ -89,8 +89,6 @@ parser.add_argument('--extension', type=str, default='pdf', help="Extension of t
 
 
 def main():
-    print("!!!!Next todos: plot ALDP")
-
     args = parse_args(parser)
     assert args.test_system or args.start and args.target, "Either specify a test system or provide start and target structures"
     assert not (
