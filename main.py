@@ -160,8 +160,6 @@ def main():
         if checkpoint_manager.latest_step() is None:
             print("Warning: No checkpoint found.")
         else:
-            # TODO: fix this. At least for low rank it does not work
-
             print('Loading checkpoint:', checkpoint_manager.latest_step())
 
             state_restored = checkpoint_manager.restore(checkpoint_manager.latest_step())
