@@ -11,6 +11,19 @@ from training.utils import forward_and_derivatives
 from utils.splines import vectorized_cubic_spline, vectorized_linear_spline
 
 
+def _matmul_batched(a, b):
+    return jax.lax.batch_matmul(a, b)
+
+
+def _dSigmadt_batched(_S_t, _dSdt):
+    dSigmadt = jax.lax.batch_matmul(_dSdt, jnp.transpose(_S_t, (0, 2, 1)))
+    return dSigmadt + jax.lax.batch_matmul(_S_t, jnp.transpose(_dSdt, (0, 2, 1)))
+
+
+_dSigmadt_batched = jax.vmap(_dSigmadt_batched, in_axes=(1, 1), out_axes=1)
+_matmul_batched = jax.vmap(_matmul_batched, in_axes=1, out_axes=1)
+
+
 class LowRankSpline(nn.Module):
     n_points: int
     interpolation: str
@@ -76,11 +89,9 @@ class LowRankWrapper(WrappedModule):
 
     @nn.compact
     def _post_process(self, h: ArrayLike, t: ArrayLike):
+        BS = h.shape[0]
         ndim = self.A.shape[0]
         num_mixtures = self.num_mixtures
-
-        print("WARNING: Mixtures for low rank not yet implemented!")
-        assert num_mixtures == 1, "Mixtures for low rank not yet implemented!"
 
         h_mu = (1 - t) * self.A + t * self.B
         S_0 = jnp.eye(ndim, dtype=jnp.float32)
@@ -89,19 +100,23 @@ class LowRankWrapper(WrappedModule):
         S_0 = S_0[None, ...]
         h_S = (1 - 2 * t * (1 - t))[..., None] * S_0
 
-        # TODO: I think we can just multiply num_mixtures here and then do reshaping
-        h = nn.Dense(ndim + ndim * (ndim + 1) // 2)(h)
-        mu = h_mu + (1 - t) * t * h[:, :ndim]
+        h = nn.Dense(self.num_mixtures * (ndim + ndim * (ndim + 1) // 2))(h)
+        mu = (
+                h_mu[:, None, :] +
+                ((1 - t) * t)[:, None, :] * h[:, :self.num_mixtures * ndim].reshape(BS, self.num_mixtures, ndim)
+        )
 
-        @jax.vmap
+        @jax.vmap  # once for num_mixtures
+        @jax.vmap  # once for batch
         def get_tril(v):
             a = jnp.zeros((ndim, ndim), dtype=jnp.float32)
             a = a.at[jnp.tril_indices(ndim)].set(v)
             return a
 
-        S = get_tril(h[:, ndim:])
+        S = h[:, self.num_mixtures * ndim:].reshape(BS, self.num_mixtures, ndim * (ndim + 1) // 2)
+        S = get_tril(S)
         S = jnp.tril(2 * jax.nn.sigmoid(S) - 1.0, k=-1) + jnp.eye(ndim, dtype=jnp.float32)[None, ...] * jnp.exp(S)
-        S = h_S + 2 * ((1 - t) * t)[..., None] * S
+        S = h_S[:, None, ...] + 2 * ((1 - t) * t)[..., None, None] * S
 
         if self.trainable_weights:
             w_logits = self.param('w_logits', nn.initializers.zeros_init(), (num_mixtures,), dtype=jnp.float32)
@@ -123,32 +138,66 @@ class LowRankSetup(DriftedSetup):
 
             def v_t(_eps, _t):
                 _mu_t, _S_t_val, _w_logits, _dmudt, _dSdt_val = forward_and_derivatives(state_q, _t, params_q)
+                _i = jax.random.categorical(key[2], _w_logits, shape=[BS, ])
 
-                _x = _mu_t + jax.lax.batch_matmul(_S_t_val, _eps).squeeze()
-                dlogdx = -jax.scipy.linalg.solve_triangular(jnp.transpose(_S_t_val, (0, 2, 1)), _eps)
-                # S_t_val_inv = jnp.transpose(jnp.linalg.inv(S_t_val), (0,2,1))
-                # dlogdx = -jax.lax.batch_matmul(S_t_val_inv, _eps)
-                dSigmadt = jax.lax.batch_matmul(_dSdt_val, jnp.transpose(_S_t_val, (0, 2, 1)))
-                dSigmadt += jax.lax.batch_matmul(_S_t_val, jnp.transpose(_dSdt_val, (0, 2, 1)))
-                u_t = _dmudt - 0.5 * jax.lax.batch_matmul(dSigmadt, dlogdx).squeeze()
-                out = (u_t - self._drift(_x.reshape(BS, ndim), gamma)) + 0.5 * (self.xi ** 2) * dlogdx.squeeze()
-                return out
+                _x = (_mu_t[jnp.arange(BS), _i, None] +
+                      jax.lax.batch_matmul(_S_t_val[jnp.arange(BS), _i], _eps).squeeze()[:, None, ...])
+
+                if _mu_t.shape[1] == 1:
+                    # This completely ignores the weights and saves some time
+                    relative_weights = 1
+                else:
+                    log_q_i = jax.scipy.stats.multivariate_normal.logpdf(_x, _mu_t, _S_t_val)
+                    relative_weights = jax.nn.softmax(_w_logits + log_q_i)[..., None]
+
+                def _dlogdx_batched(_S_t):
+                    print('TODO: How to handle this epsilon for mixtures?')
+                    return -jax.scipy.linalg.solve_triangular(jnp.transpose(_S_t, (0, 2, 1)), _eps)
+
+                _dlogdx_batched = jax.vmap(_dlogdx_batched, in_axes=1, out_axes=1)
+
+                dSigmadt = _dSigmadt_batched(_S_t_val, _dSdt_val)
+                dlogdx = _dlogdx_batched(_S_t_val)
+                u_t = (relative_weights * (_dmudt - 0.5 * _matmul_batched(dSigmadt, dlogdx).squeeze(-1))).sum(axis=1)
+                dlogdx = (relative_weights * dlogdx.squeeze(-1)).sum(axis=1)
+
+                return (u_t - self._drift(_x.reshape(BS, ndim), gamma)) + 0.5 * (self.xi ** 2) * dlogdx
 
             loss = 0.5 * ((v_t(eps, t) / self.xi) ** 2).sum(1, keepdims=True)
             print(loss.shape, 'loss.shape', 'loss.dtype', loss.dtype, flush=True)
-            return loss.mean()
+            return jnp.mean(loss)
 
         return loss_fn
 
     def u_t(self, state_q: TrainState, t: ArrayLike, x_t: ArrayLike, deterministic: bool, *args, **kwargs) -> ArrayLike:
         _mu_t, _S_t_val, _w_logits, _dmudt, _dSdt_val = forward_and_derivatives(state_q, t)
+        _x = x_t[:, None, :]
 
-        dSigmadt = jax.lax.batch_matmul(_dSdt_val, jnp.transpose(_S_t_val, (0, 2, 1)))
-        dSigmadt += jax.lax.batch_matmul(_S_t_val, jnp.transpose(_dSdt_val, (0, 2, 1)))
-        STdlogdx = jax.scipy.linalg.solve_triangular(_S_t_val, (x_t - _mu_t)[..., None])
-        dlogdx = -jax.scipy.linalg.solve_triangular(jnp.transpose(_S_t_val, (0, 2, 1)), STdlogdx)
+        if _mu_t.shape[1] == 1:
+            # This completely ignores the weights and saves some time
+            relative_weights = 1
+        else:
+            log_q_i = jax.scipy.stats.multivariate_normal.logpdf(_x, _mu_t, _S_t_val)
+            relative_weights = jax.nn.softmax(_w_logits + log_q_i)[..., None]
+
+        def solve_triangular_batched(a, b):
+            return jax.scipy.linalg.solve_triangular(a, b)
+
+        def dlogdx_batched(_S_t, _STdlogdx):
+            return -jax.scipy.linalg.solve_triangular(jnp.transpose(_S_t, (0, 2, 1)), _STdlogdx)
+
+        solve_triangular_batched = jax.vmap(solve_triangular_batched, in_axes=(1, 1), out_axes=1)
+        dlogdx_batched = jax.vmap(dlogdx_batched, in_axes=(1, 1), out_axes=1)
+
+        dSigmadt = _dSigmadt_batched(_S_t_val, _dSdt_val)
+
+        STdlogdx = solve_triangular_batched(_S_t_val, (_x - _mu_t)[..., None])
+        dlogdx = dlogdx_batched(_S_t_val, STdlogdx)
+
+        _u_t = (relative_weights * (_dmudt + (-0.5 * _matmul_batched(dSigmadt, dlogdx).squeeze(-1)))).sum(axis=1)
 
         if deterministic:
-            return _dmudt + (-0.5 * jax.lax.batch_matmul(dSigmadt, dlogdx)).squeeze()
+            return _u_t
 
-        return _dmudt + (-0.5 * jax.lax.batch_matmul(dSigmadt, dlogdx) + 0.5 * self.xi ** 2 * dlogdx).squeeze()
+        dlogdx = (relative_weights * dlogdx.squeeze(-1)).sum(axis=1)
+        return _u_t + 0.5 * self.xi ** 2 * dlogdx

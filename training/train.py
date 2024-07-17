@@ -23,7 +23,13 @@ def train(ckpt: Any, loss_fn: Callable, epochs: int, key: ArrayLike,
     with trange(ckpt['model'].step, epochs) as pbar:
         for i in pbar:
             key, loc_key = jax.random.split(key)
-            ckpt['model'], loss = train_step(ckpt['model'], loc_key)
+            new_model, loss = train_step(ckpt['model'], loc_key)
+
+            if jnp.isnan(loss).any():
+                print(f"NaN loss encountered at epoch {i}. Exiting training.")
+                break
+            ckpt['model'] = new_model
+
             if loss > 1e4:
                 pbar.set_postfix(log_loss=f"{jnp.log10(loss):.4f}")
             else:

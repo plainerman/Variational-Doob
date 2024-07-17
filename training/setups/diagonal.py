@@ -116,13 +116,13 @@ class DiagonalSetup(DriftedSetup):
 
                 if _mu_t.shape[1] == 1:
                     # This completely ignores the weights and saves some time
-                    relative_mixture_weights = 1
+                    relative_weights = 1
                 else:
                     log_q_i = jax.scipy.stats.norm.logpdf(_x, _mu_t, _sigma_t).sum(-1)
-                    relative_mixture_weights = jax.nn.softmax(_w_logits + log_q_i)[:, :, None]
+                    relative_weights = jax.nn.softmax(_w_logits + log_q_i)[..., None]
 
-                log_q_t = -(relative_mixture_weights / (_sigma_t ** 2) * (_x - _mu_t)).sum(axis=1)
-                u_t = (relative_mixture_weights * (1 / _sigma_t * _dsigmadt * (_x - _mu_t) + _dmudt)).sum(axis=1)
+                log_q_t = -(relative_weights / (_sigma_t ** 2) * (_x - _mu_t)).sum(axis=1)
+                u_t = (relative_weights * (1 / _sigma_t * _dsigmadt * (_x - _mu_t) + _dmudt)).sum(axis=1)
 
                 return u_t - self._drift(_x.reshape(BS, ndim), gamma) + 0.5 * (self.xi ** 2) * log_q_t
 
@@ -135,18 +135,18 @@ class DiagonalSetup(DriftedSetup):
         _mu_t, _sigma_t, _w_logits, _dmudt, _dsigmadt = forward_and_derivatives(state_q, t)
         _x = x_t[:, None, :]
 
-        log_q_i = jax.scipy.stats.norm.logpdf(_x, _mu_t, _sigma_t).sum(-1)
         if _w_logits.shape[0] == 1:
             # This completely ignores the weights and saves some time
-            relative_mixture_weights = 1
+            relative_weights = 1
         else:
-            relative_mixture_weights = jax.nn.softmax(_w_logits + log_q_i)[:, :, None]
+            log_q_i = jax.scipy.stats.norm.logpdf(_x, _mu_t, _sigma_t).sum(-1)
+            relative_weights = jax.nn.softmax(_w_logits + log_q_i)[:, :, None]
 
-        _u_t = (relative_mixture_weights * (1 / _sigma_t * _dsigmadt * (_x - _mu_t) + _dmudt)).sum(axis=1)
+        _u_t = (relative_weights * (1 / _sigma_t * _dsigmadt * (_x - _mu_t) + _dmudt)).sum(axis=1)
 
         if deterministic:
             return _u_t
 
-        log_q_t = -(relative_mixture_weights / (_sigma_t ** 2) * (_x - _mu_t)).sum(axis=1)
+        log_q_t = -(relative_weights / (_sigma_t ** 2) * (_x - _mu_t)).sum(axis=1)
 
         return _u_t + 0.5 * (self.xi ** 2) * log_q_t
