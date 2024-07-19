@@ -29,6 +29,9 @@ def plot_energy(system: System, trajectories: [ArrayLike], log_plot: bool):
     plt.ylabel('Energy')
     energies = jnp.array([system.U(t) for t in trajectories])
 
+    print(f"Min energy: {jnp.min(energies, axis=-1)}")
+    print(f"Max energy: {jnp.max(energies, axis=-1)}")
+
     if log_plot:
         min_energy = jnp.min(energies)
         if min_energy < 0:
