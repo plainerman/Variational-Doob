@@ -14,6 +14,7 @@ dependencies:
   - ParmEd=4.2.2
   - openpathsampling=1.6.1
   - jax=0.4.23
+  - jaxlib=0.4.23
   - flax=0.8.3
   - notebook=7.0.8
   - pip:
