@@ -203,7 +203,7 @@ if __name__ == '__main__':
     initial_trajectory = [p for p in initial_trajectory]
 
     if args.ensure_connected:
-        initial_trajectory = [system.A] + [p for p in initial_trajectory] + [B]
+        initial_trajectory = [system.A] + [p for p in initial_trajectory] + [system.B]
 
     save_trajectory(system.mdtraj_topology, jnp.array(initial_trajectory), f'{savedir}/initial_trajectory.pdb')
 
