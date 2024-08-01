@@ -105,8 +105,6 @@ class System:
                            yticklabels=[r'$-\pi$', r'$-\frac {\pi} {2}$', '0', r'$\frac {\pi} {2}$', r'$\pi$'],
                            square=True, periodic=True,
                            )
-
-
         else:
             raise ValueError(f"Unknown cv: {cv}")
 

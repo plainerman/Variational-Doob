@@ -8,7 +8,7 @@ from systems import System
 from tps.plot import PeriodicPathHistogram
 from matplotlib.animation import FuncAnimation, PillowWriter
 import jax
-
+from tqdm import tqdm
 from flax.training.train_state import TrainState
 
 
@@ -65,8 +65,11 @@ def plot_cv(cv: Callable[[ArrayLike], ArrayLike], points: Optional[ArrayLike] = 
     if trajectories is None:
         cv_trajectories = None
     else:
-        cv_trajectories = cv(trajectories.reshape(-1, trajectories.shape[-1])).reshape(trajectories.shape[0],
-                                                                                       trajectories.shape[1], 2)
+        if isinstance(trajectories, jnp.ndarray):
+            cv_trajectories = cv(trajectories.reshape(-1, trajectories.shape[-1])).reshape(trajectories.shape[0],
+                                                                                           trajectories.shape[1], 2)
+        else:
+            cv_trajectories = [cv(t) for t in trajectories]
     plot_2d(points=None if points is None else cv(points), trajectories=cv_trajectories, *args, **kwargs)
 
 

@@ -4,18 +4,14 @@ import jax
 import numpy as np
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
-from tqdm import trange, tqdm
+from tqdm import tqdm
 import json
 
-# install openmm (from conda)
-import openmm.app as app
 import openmm.unit as unit
-# install dmff (from source)
-from dmff import Hamiltonian, NeighborList
-# install mdtraj
 import mdtraj as md
 
-from eval.path_metrics import plot_path_energy
+from eval.path_metrics import plot_path_energy, plot_iterative_min_max_energy
+from systems import System
 from tps import first_order as tps1
 from tps import second_order as tps2
 from tps.plot import PeriodicPathHistogram
@@ -24,6 +20,7 @@ from matplotlib import colors
 
 from utils.angles import phi_psi_from_mdtraj
 from utils.animation import save_trajectory, to_md_traj
+from utils.plot import show_or_save_fig
 from utils.rmsd import kabsch_align, kabsch_rmsd
 
 from argparse import ArgumentParser
@@ -57,44 +54,6 @@ def human_format(num):
             magnitude += 1
             num *= 1000.0
         return '{}{}'.format('{:f}'.format(num).rstrip('0').rstrip('.'), ['', 'm', 'µ', 'n', 'p', 'f'][magnitude])
-
-
-def ramachandran(samples, bins=100, path=None, paths=None, states=None, alpha=1.0):
-    if samples is not None:
-        plt.hist2d(samples[:, 0], samples[:, 1], bins=bins, norm=colors.LogNorm(), rasterized=True)
-    plt.xlim(-np.pi, np.pi)
-    plt.ylim(-np.pi, np.pi)
-
-    # set ticks
-    plt.gca().set_xticks([-np.pi, -np.pi / 2, 0, np.pi / 2, np.pi])
-    plt.gca().set_xticklabels([r'$-\pi$', r'$-\frac {\pi} {2}$', '0', r'$\frac {\pi} {2}$', r'$\pi$'])
-
-    plt.gca().set_yticks([-np.pi, -np.pi / 2, 0, np.pi / 2, np.pi])
-    plt.gca().set_yticklabels([r'$-\pi$', r'$-\frac {\pi} {2}$', '0', r'$\frac {\pi} {2}$', r'$\pi$'])
-
-    plt.xlabel(r'$\phi$')
-    plt.ylabel(r'$\psi$')
-
-    plt.gca().set_aspect('equal', adjustable='box')
-
-    def draw_path(_path, **kwargs):
-        dist = jnp.sqrt(np.sum(jnp.diff(_path, axis=0) ** 2, axis=1))
-        mask = jnp.hstack([dist > jnp.pi, jnp.array([False])])
-        masked_path_x, masked_path_y = np.ma.MaskedArray(_path[:, 0], mask), np.ma.MaskedArray(_path[:, 1], mask)
-        plt.plot(masked_path_x, masked_path_y, **kwargs)
-
-    if path is not None:
-        draw_path(path, color='red')
-
-    if paths is not None:
-        for path in paths:
-            draw_path(path, color='blue')
-
-    for state in (states if states is not None else []):
-        c = plt.Circle(state['center'], radius=state['radius'], edgecolor='gray', facecolor='white', ls='--', lw=0.7,
-                       alpha=alpha)
-        plt.gca().add_patch(c)
-        plt.gca().annotate(state['name'], xy=state['center'], ha="center", va="center")
 
 
 dt_as_unit = unit.Quantity(value=1, unit=unit.femtosecond)
@@ -137,11 +96,6 @@ def step_n(step, _x, _v, n, _key):
 if __name__ == '__main__':
     args = parser.parse_args()
 
-    init_pdb = app.PDBFile("./files/AD_A.pdb")
-    target_pdb = app.PDBFile("./files/AD_B.pdb")
-    mdtraj_topology = md.Topology.from_openmm(init_pdb.topology)
-    phis_psis = phi_psi_from_mdtraj(mdtraj_topology)
-
     savedir = f"out/baselines/alanine-{args.mechanism}"
     if args.fixed_length > 0:
         savedir += f'-{args.fixed_length}steps'
@@ -150,56 +104,17 @@ if __name__ == '__main__':
 
     os.makedirs(savedir, exist_ok=True)
 
-    # Construct the mass matrix
-    mass = [a.element.mass.value_in_unit(unit.dalton) for a in init_pdb.topology.atoms()]
-    new_mass = []
-    for mass_ in mass:
-        for _ in range(3):
-            new_mass.append(mass_)
-    mass = jnp.array(new_mass)
-    # Obtain xi, gamma is by default 1
-    xi = jnp.sqrt(2 * kbT / mass / gamma)
-
-    # Initial and target shape [BS, 66]
-    A = jnp.array(init_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer))
-    B = jnp.array(target_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer))
-    A, B = kabsch_align(A, B)
-    A, B = A.reshape(1, -1), B.reshape(1, -1)
-
-    # Initialize the potential energy with amber forcefields
-    ff = Hamiltonian('amber14/protein.ff14SB.xml', 'amber14/tip3p.xml')
-    potentials = ff.createPotential(init_pdb.topology,
-                                    nonbondedMethod=app.NoCutoff,
-                                    nonbondedCutoff=1.0 * unit.nanometers,
-                                    constraints=None,
-                                    ewaldErrorTolerance=0.0005)
-    # Create a box used when calling
-    box = np.array([[50.0, 0.0, 0.0], [0.0, 50.0, 0.0], [0.0, 0.0, 50.0]])
-    nbList = NeighborList(box, 4.0, potentials.meta["cov_map"])
-    nbList.allocate(init_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer))
-    pairs = nbList.pairs
-
-
-    @jax.jit
-    def U(_x):
-        """
-        Calling U by U(x, box, pairs, ff.paramset.parameters), x is [22, 3] and output the energy, if it is batched, use vmap
-        """
-        _U = potentials.getPotentialFunc()
-
-        return _U(_x.reshape(22, 3), box, pairs, ff.paramset.parameters)
-
-
-    @jax.jit
-    @jax.vmap
-    def dUdx_fn(_x):
-        return jax.grad(lambda _x: U(_x).sum())(_x) / mass / gamma_in_ps
+    system = System.from_pdb("./files/AD_A.pdb", "./files/AD_B.pdb",
+                             ['amber14/protein.ff14SB.xml', 'amber14/tip3p.xml'], 'phi_psi', float('inf'))
+    xi = jnp.sqrt(2 * kbT / system.mass / gamma)
+    phis_psis = phi_psi_from_mdtraj(system.mdtraj_topology)
 
 
     @jax.jit
     def step(_x, _key):
         """Perform one step of forward euler"""
-        return _x - dt * dUdx_fn(_x) + jnp.sqrt(dt) * xi * jax.random.normal(_key, _x.shape)
+        return _x - dt * system.dUdx(_x) / system.mass / gamma_in_ps + jnp.sqrt(dt) * xi * jax.random.normal(_key,
+                                                                                                             _x.shape)
 
 
     @jax.jit
@@ -207,8 +122,8 @@ if __name__ == '__main__':
         """Perform one step of forward langevin as implemented in openmm"""
         alpha = jnp.exp(-gamma_in_ps * dt_in_ps)
         f_scale = (1 - alpha) / gamma_in_ps
-        new_v_det = alpha * _v + f_scale * -dUdx_fn(_x)
-        new_v = new_v_det + jnp.sqrt(kbT * (1 - alpha ** 2) / mass) * jax.random.normal(_key, _x.shape)
+        new_v_det = alpha * _v + f_scale * -system.dUdx(_x) / system.mass / gamma_in_ps
+        new_v = new_v_det + jnp.sqrt(kbT * (1 - alpha ** 2) / system.mass) * jax.random.normal(_key, _x.shape)
 
         return _x + dt_in_ps * new_v, new_v
 
@@ -219,8 +134,8 @@ if __name__ == '__main__':
         alpha = jnp.exp(-gamma_in_ps * dt_in_ps)
         f_scale = (1 - alpha) / gamma_in_ps
         prev_x = _x - dt_in_ps * _v
-        prev_v = 1 / alpha * (_v + f_scale * dUdx_fn(prev_x) - jnp.sqrt(
-            kbT * (1 - alpha ** 2) / mass) * jax.random.normal(_key, _x.shape))
+        prev_v = 1 / alpha * (_v + f_scale * system.dUdx(prev_x) / system.mass / gamma_in_ps - jnp.sqrt(
+            kbT * (1 - alpha ** 2) / system.mass) * jax.random.normal(_key, _x.shape))
 
         return prev_x, prev_v
 
@@ -229,10 +144,10 @@ if __name__ == '__main__':
     def step_langevin_log_prob(_x, _v, _new_x, _new_v):
         alpha = jnp.exp(-gamma_in_ps * dt_in_ps)
         f_scale = (1 - alpha) / gamma_in_ps
-        new_v_det = alpha * _v + f_scale * -dUdx_fn(_x)
+        new_v_det = alpha * _v + f_scale * -system.dUdx(_x) / system.mass / gamma_in_ps
         new_v_rand = new_v_det - _new_v
 
-        return jax.scipy.stats.norm.logpdf(new_v_rand, 0, jnp.sqrt(kbT * (1 - alpha ** 2) / mass)).sum()
+        return jax.scipy.stats.norm.logpdf(new_v_rand, 0, jnp.sqrt(kbT * (1 - alpha ** 2) / system.mass)).sum()
 
 
     def langevin_log_path_likelihood(path_and_velocities):
@@ -240,8 +155,8 @@ if __name__ == '__main__':
         assert len(path) == len(velocities), \
             f'path and velocities must have the same length, but got {len(path)} and {len(velocities)}'
 
-        log_prob = (-U(path[0]) / kbT).sum()
-        log_prob += jax.scipy.stats.norm.logpdf(velocities[0], 0, jnp.sqrt(kbT / mass)).sum()
+        log_prob = (-system.U(path[0]) / kbT).sum()
+        log_prob += jax.scipy.stats.norm.logpdf(velocities[0], 0, jnp.sqrt(kbT / system.mass)).sum()
 
         for i in range(1, len(path)):
             log_prob += step_langevin_log_prob(path[i - 1], velocities[i - 1], path[i], velocities[i])
@@ -250,7 +165,7 @@ if __name__ == '__main__':
 
 
     # Choose a system, either phi psi, or rmsd
-    # system = tps1.System(
+    # tps_config = tps1.System(
     #     jax.jit(jax.vmap(lambda s: kabsch_rmsd(A.reshape(22, 3), s.reshape(22, 3)) < 0.1)),
     #     jax.jit(jax.vmap(lambda s: kabsch_rmsd(B.reshape(22, 3), s.reshape(22, 3)) < 0.1)),
     #     step
@@ -258,35 +173,39 @@ if __name__ == '__main__':
 
     radius = 20 / deg
 
-    # system = tps1.FirstOrderSystem(
+    # tps_config = tps1.FirstOrderSystem(
     #     lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(A), radius),
     #     lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(B), radius),
     #     step
     # )
 
     if args.states == 'rmsd':
-        state_A = jax.jit(jax.vmap(lambda s: kabsch_rmsd(A.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2))
-        state_B = jax.jit(jax.vmap(lambda s: kabsch_rmsd(B.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2))
+        state_A = jax.jit(jax.vmap(lambda s: kabsch_rmsd(system.A.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2))
+        state_B = jax.jit(jax.vmap(lambda s: kabsch_rmsd(system.B.reshape(22, 3), s.reshape(22, 3)) <= 7.5e-2))
     elif args.states == 'phi-psi':
-        state_A = jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(A), radius))
-        state_B = jax.jit(lambda s: is_within(phis_psis(s).reshape(-1, 2), phis_psis(B), radius))
+        state_A = jax.jit(
+            lambda s: is_within(phis_psis(s.reshape(-1, 22, 3)).reshape(-1, 2), phis_psis(system.A.reshape(-1, 22, 3)),
+                                radius))
+        state_B = jax.jit(
+            lambda s: is_within(phis_psis(s.reshape(-1, 22, 3)).reshape(-1, 2), phis_psis(system.B.reshape(-1, 22, 3)),
+                                radius))
     else:
         raise ValueError(f"Unknown states {args.states}")
 
-    system = tps2.SecondOrderSystem(
+    tps_config = tps2.SecondOrderSystem(
         state_A, state_B,
         jax.jit(lambda _x, _v, _key: step_n(step_langevin_forward, _x, _v, args.num_steps, _key)),
         jax.jit(lambda _x, _v, _key: step_n(step_langevin_backward, _x, _v, args.num_steps, _key)),
-        jax.jit(lambda key: jnp.sqrt(kbT / mass) * jax.random.normal(key, (1, 66)))
+        jax.jit(lambda key: jnp.sqrt(kbT / system.mass) * jax.random.normal(key, (1, 66)))
     )
 
     initial_trajectory = md.load('./files/AD_A_B_500K_initial_trajectory.pdb').xyz.reshape(-1, 1, 66)
     initial_trajectory = [p for p in initial_trajectory]
 
     if args.ensure_connected:
-        initial_trajectory = [A] + [p for p in initial_trajectory] + [B]
+        initial_trajectory = [system.A] + [p for p in initial_trajectory] + [B]
 
-    save_trajectory(mdtraj_topology, jnp.array(initial_trajectory), f'{savedir}/initial_trajectory.pdb')
+    save_trajectory(system.mdtraj_topology, jnp.array(initial_trajectory), f'{savedir}/initial_trajectory.pdb')
 
     if args.resume:
         paths = [[x for x in p.astype(np.float32)] for p in np.load(f'{savedir}/paths.npy', allow_pickle=True)]
@@ -308,15 +227,15 @@ if __name__ == '__main__':
 
         stored = None
 
-    assert ((system.start_state(A) and system.target_state(B))
-            or (system.start_state(B) and system.target_state(A))), \
+    assert ((tps_config.start_state(system.A) and tps_config.target_state(system.B))
+            or (tps_config.start_state(system.B) and tps_config.target_state(system.A))), \
         'A and B are not in the correct states. Please check your settings.'
 
     if args.mechanism == 'one-way-shooting':
-        assert (system.start_state(initial_trajectory[0])
-                or system.target_state(initial_trajectory[0])
-                or system.start_state(initial_trajectory[-1])
-                or system.target_state(initial_trajectory[-1])
+        assert (tps_config.start_state(initial_trajectory[0])
+                or tps_config.target_state(initial_trajectory[0])
+                or tps_config.start_state(initial_trajectory[-1])
+                or tps_config.target_state(initial_trajectory[-1])
                 ), 'One-Way shooting requires the initial trajectory to start or end in one of the states.'
         mechanism = tps2.one_way_shooting
     elif args.mechanism == 'two-way-shooting':
@@ -325,12 +244,12 @@ if __name__ == '__main__':
         raise ValueError(f"Unknown mechanism {args.mechanism}")
 
     try:
-        paths, velocities, statistics = tps2.mcmc_shooting(system, mechanism, initial_trajectory,
+        paths, velocities, statistics = tps2.mcmc_shooting(tps_config, mechanism, initial_trajectory,
                                                            args.num_paths, dt_in_ps, jax.random.PRNGKey(1),
                                                            warmup=args.warmup,
                                                            fixed_length=args.fixed_length,
                                                            stored=stored)
-        # paths = tps2.unguided_md(system, B, 1, key)
+        # paths = tps2.unguided_md(tps_config, B, 1, key)
         paths = [jnp.array(p) for p in paths]
         velocities = [jnp.array(p) for p in velocities]
         # store paths
@@ -348,6 +267,7 @@ if __name__ == '__main__':
         exit(1)
 
     print(statistics)
+    print('Number of force evaluations', sum(statistics['num_force_evaluations']))
 
     if args.fixed_length == 0:
         print([len(p) for p in paths])
@@ -355,40 +275,27 @@ if __name__ == '__main__':
         plt.savefig(f'{savedir}/lengths.png', bbox_inches='tight')
         plt.show()
 
-    path_hist = PeriodicPathHistogram()
-    for i, path in tqdm(enumerate(paths), desc='Adding paths to histogram', total=len(paths)):
-        path_hist.add_path(jnp.array(path))
-
     plt.title(f"{human_format(len(paths))} paths @ {temp} K, dt = {human_format(dt)}s")
-    path_hist.plot(cmin=0.01)
-    ramachandran(None, states=[
-        {'name': 'A', 'center': phis_psis(A).squeeze(), 'radius': radius},
-        {'name': 'B', 'center': phis_psis(B).squeeze(), 'radius': radius},
-    ], alpha=0.7)
-    plt.savefig(f'{savedir}/paths.png', bbox_inches='tight')
-    plt.show()
-    plt.clf()
+    system.plot(trajectories=paths, alpha=0.7)
+    show_or_save_fig(savedir, 'paths', 'png')
 
     print("Plotting path-summary metrics.")
 
-    plot_path_energy(paths, jax.vmap(U))
-    plt.ylabel('Maximum energy')
-    plt.savefig(f'{savedir}/max_energy.png', bbox_inches='tight')
-    plt.show()
-    plt.clf()
+    plot_iterative_min_max_energy(paths, system.U, statistics['num_force_evaluations'])
+    show_or_save_fig(savedir, 'iterative_min_max', 'pdf')
 
-    plot_path_energy(paths, jax.vmap(U), reduce=jnp.median)
-    plt.ylabel('Median energy')
-    plt.savefig(f'{savedir}/median_energy.png', bbox_inches='tight')
-    plt.show()
-    plt.clf()
+    plot_path_energy(paths, jax.vmap(system.U))
+    plt.ylabel('Maximum energy')
+    show_or_save_fig(savedir, 'max_energy', 'pdf')
+
+    plot_path_energy(paths, jax.vmap(system.U), reduce=jnp.median)
+    show_or_save_fig(savedir, 'median_energy', 'pdf')
 
     plot_path_energy(list(zip(paths, velocities)), langevin_log_path_likelihood, reduce=lambda x: x, already_ln=True)
     plt.ylabel('Path Likelihood')
-    plt.savefig(f'{savedir}/path_density.png', bbox_inches='tight')
-    plt.show()
-    plt.clf()
+    show_or_save_fig(savedir, 'path_density', 'pdf')
 
     for i, path in tqdm(enumerate(paths), desc='Saving trajectories', total=len(paths)):
-        save_trajectory(mdtraj_topology, jnp.array([kabsch_align(p.reshape(-1, 3), B.reshape(-1, 3))[0] for p in path]),
+        save_trajectory(system.mdtraj_topology,
+                        jnp.array([kabsch_align(p.reshape(-1, 3), system.B.reshape(-1, 3))[0] for p in path]),
                         f'{savedir}/trajectory_{i}.pdb')

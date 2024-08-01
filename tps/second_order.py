@@ -158,7 +158,7 @@ def mcmc_shooting(system, proposal, initial_trajectory, num_paths, dt, key, fixe
     trajectories = [initial_trajectory]
     velocities = []
     statistics = {
-        'num_force_evaluations': 0,
+        'num_force_evaluations': [],
         'num_tries': 0,
         'num_metropolis_rejected': 0,
         'warmup': warmup,
@@ -193,7 +193,8 @@ def mcmc_shooting(system, proposal, initial_trajectory, num_paths, dt, key, fixe
                 # trajectories and velocities are one off
                 found, new_trajectory, new_velocities = proposal(system,
                                                                  trajectories[traj_idx],
-                                                                 velocities[traj_idx - 1] if len(trajectories) > 1 else None,
+                                                                 velocities[traj_idx - 1] if len(
+                                                                     trajectories) > 1 else None,
                                                                  fixed_length, dt, ikey)
                 num_force_evaluations += len(new_trajectory) - 1
 
@@ -206,7 +207,7 @@ def mcmc_shooting(system, proposal, initial_trajectory, num_paths, dt, key, fixe
                     # only update them in the dictionary once accepted
                     # this allows us to continue the progress
                     statistics['num_tries'] += num_tries
-                    statistics['num_force_evaluations'] += num_force_evaluations
+                    statistics['num_force_evaluations'].append(num_force_evaluations)
                     statistics['num_metropolis_rejected'] += num_metropolis_rejected
                     num_tries = 0
                     num_force_evaluations = 0
