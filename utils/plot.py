@@ -1,10 +1,15 @@
 from tqdm import tqdm
+from training.qsetup import QSetup
 from typing import Optional, Tuple, Callable
 from jax.typing import ArrayLike
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from systems import System
 from tps.plot import PeriodicPathHistogram
+from matplotlib.animation import FuncAnimation, PillowWriter
+import jax
+
+from flax.training.train_state import TrainState
 
 
 def log_scale(log_plot: bool, x: bool, y: bool):
@@ -151,46 +156,53 @@ def _plot_trajectories(trajectories: ArrayLike, bins: int, xlim: ArrayLike, ylim
         rasterized=True
     )
 
-# def periodic_2d_plot(samples=None, bins=100, path=None, paths=None, states=None, alpha=1.0, title=None):
-#     if title is not None:
-#         plt.title(title)
-#
-#     path_hist = PeriodicPathHistogram()
-#     for i, path in tqdm(enumerate(paths), desc='Adding paths to histogram', total=len(paths)):
-#         path_hist.add_path(jnp.array(phis_psis(path)))
-#
-#     if samples is not None:
-#         plt.hist2d(samples[:, 0], samples[:, 1], bins=bins, norm=colors.LogNorm(), rasterized=True)
-#     plt.xlim(-jnp.pi, jnp.pi)
-#     plt.ylim(-jnp.pi, jnp.pi)
-#
-#     # set ticks
-#     plt.gca().set_xticks([-jnp.pi, -jnp.pi / 2, 0, jnp.pi / 2, jnp.pi])
-#     plt.gca().set_xticklabels([r'$-\pi$', r'$-\frac {\pi} {2}$', '0', r'$\frac {\pi} {2}$', r'$\pi$'])
-#
-#     plt.gca().set_yticks([-jnp.pi, -jnp.pi / 2, 0, jnp.pi / 2, jnp.pi])
-#     plt.gca().set_yticklabels([r'$-\pi$', r'$-\frac {\pi} {2}$', '0', r'$\frac {\pi} {2}$', r'$\pi$'])
-#
-#     plt.xlabel(r'$\phi$')
-#     plt.ylabel(r'$\psi$')
-#
-#     plt.gca().set_aspect('equal', adjustable='box')
-#
-#     def draw_path(_path, **kwargs):
-#         dist = jnp.sqrt(np.sum(jnp.diff(_path, axis=0) ** 2, axis=1))
-#         mask = jnp.hstack([dist > jnp.pi, jnp.array([False])])
-#         masked_path_x, masked_path_y = np.ma.MaskedArray(_path[:, 0], mask), np.ma.MaskedArray(_path[:, 1], mask)
-#         plt.plot(masked_path_x, masked_path_y, **kwargs)
-#
-#     if path is not None:
-#         draw_path(path, color='red')
-#
-#     if paths is not None:
-#         for path in paths:
-#             draw_path(path, color='blue')
-#
-#     for state in (states if states is not None else []):
-#         c = plt.Circle(state['center'], radius=state['radius'], edgecolor='gray', facecolor='white', ls='--', lw=0.7,
-#                        alpha=alpha)
-#         plt.gca().add_patch(c)
-#         plt.gca().annotate(state['name'], xy=state['center'], ha="center", va="center")
+
+def plot_u_t(system: System, setup: QSetup, state_q: TrainState, T: float, save_dir: str, name: str, frames: int = 100,
+             fps: int = 10):
+    t = T * jnp.linspace(0, 1, frames, dtype=jnp.float32).reshape((-1, 1))
+    mu_t, sigma_t, _ = state_q.apply_fn(state_q.params, t)
+
+    _u_t_func = jax.jit(lambda _t, _points: setup.u_t(state_q, _t * jnp.ones((len(_points), 1)), _points, True))
+
+    def get_lim():
+        system.plot()
+        x_lim, y_lim = plt.xlim(), plt.ylim()
+        plt.clf()
+        return x_lim, y_lim
+
+    x_lim, y_lim = get_lim()
+    x, y = jnp.meshgrid(jnp.linspace(x_lim[0], x_lim[1], 10), jnp.linspace(y_lim[0], y_lim[1], 10))
+    points = jnp.vstack([x.ravel(), y.ravel()], dtype=jnp.float32).T
+
+    x_all, y_all = [], []
+    u_all, v_all = [], []
+    for t in jnp.linspace(0, T, frames):
+        uv = _u_t_func(t, points)
+        u, v = uv[:, 0], uv[:, 1]
+        u, v = u.reshape(x.shape), v.reshape(y.shape)
+        x_all.append(x)
+        y_all.append(y)
+        u_all.append(u)
+        v_all.append(v)
+
+    def animate(i):
+        t = jnp.linspace(0, T, frames)[i]
+        plt.clf()
+        system.plot(title='t / T = {:.2f}'.format(i / frames))
+
+        for j in range(mu_t.shape[1]):
+            color = jnp.zeros(frames)
+            color = color.at[i].add(1)
+            mu_x, mu_y = mu_t[:, j, 0], mu_t[:, j, 1]
+            plt.scatter(mu_x[color == 0], mu_y[color == 0], c='blue')
+            plt.scatter(mu_x[color == 1], mu_y[color == 1], c='red')
+
+            uv_testpoint = _u_t_func(t, jnp.array([mu_x[color == 1], mu_y[color == 1]]).T)
+            plt.quiver(mu_x[color == 1], mu_y[color == 1], uv_testpoint[:, 0], uv_testpoint[:, 1], color='red')
+
+        return plt.quiver(x_all[i], y_all[i], u_all[i], v_all[i]),
+
+    fig, ax = plt.subplots()
+    ani = FuncAnimation(fig, animate, interval=40, blit=True, repeat=True, frames=frames)
+    ani.save(f"{save_dir}/{name}.gif", dpi=300, writer=PillowWriter(fps=fps))
+    plt.clf()

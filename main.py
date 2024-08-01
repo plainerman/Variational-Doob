@@ -1,5 +1,4 @@
 from argparse import ArgumentParser
-
 from utils.animation import save_trajectory
 from utils.args import parse_args, str2bool
 from systems import System
@@ -10,7 +9,7 @@ from flax.training import train_state
 import optax
 import training.qsetup as qsetup
 from training.train import train
-from utils.plot import show_or_save_fig, log_scale, plot_energy
+from utils.plot import show_or_save_fig, log_scale, plot_energy, plot_u_t
 import os
 import sys
 import orbax.checkpoint as ocp
