@@ -110,6 +110,14 @@ if __name__ == '__main__':
     phis_psis = phi_psi_from_mdtraj(system.mdtraj_topology)
 
 
+    def U_padded(x):
+        x = x.reshape(-1, 66)
+        orig_length = x.shape[0]
+        padded_length = orig_length // 100 * 100 + 100
+        x_empty = jnp.zeros((padded_length, 66))
+        x = x_empty.at[:x.shape[0], :].set(x.reshape(-1, 66))
+        return system.U(x)[:orig_length]
+
     @jax.jit
     def step(_x, _key):
         """Perform one step of forward euler"""
@@ -281,14 +289,14 @@ if __name__ == '__main__':
 
     print("Plotting path-summary metrics.")
 
-    plot_iterative_min_max_energy(paths, system.U, statistics['num_force_evaluations'])
+    plot_iterative_min_max_energy(paths, U_padded, statistics['num_force_evaluations'])
     show_or_save_fig(savedir, 'iterative_min_max', 'pdf')
 
-    plot_path_energy(paths, jax.vmap(system.U))
+    plot_path_energy(paths, jax.vmap(U_padded))
     plt.ylabel('Maximum energy')
     show_or_save_fig(savedir, 'max_energy', 'pdf')
 
-    plot_path_energy(paths, jax.vmap(system.U), reduce=jnp.median)
+    plot_path_energy(paths, jax.vmap(U_padded), reduce=jnp.median)
     show_or_save_fig(savedir, 'median_energy', 'pdf')
 
     plot_path_energy(list(zip(paths, velocities)), langevin_log_path_likelihood, reduce=lambda x: x, already_ln=True)

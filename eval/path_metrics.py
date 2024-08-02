@@ -25,6 +25,6 @@ def plot_iterative_min_max_energy(paths, U, potential_calls):
 
     plt.xlabel('Number of potential calls')
     plt.ylabel('Minimum energy of best path so far')
-    plt.semilogy(jnp.cumsum(jnp.array(potential_calls)), iterative_min)
+    plt.semilogx(jnp.cumsum(jnp.array(potential_calls)), iterative_min)
 
     return iterative_min

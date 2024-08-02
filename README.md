@@ -30,7 +30,7 @@ and
 ```bash
 python tps_baseline.py --mechanism two-way-shooting --num_paths 1000 --states phi-psi
 # num_steps compiles multiple MD steps into a single one, making sampling faster. But this makes startup longer. Only really worth it for long running simulations
-python tps_baseline.py --mechanism two-way-shooting --num_paths 1000 --fixed_length 1000 --states phi-psi --num_steps 50
+python tps_baseline.py --mechanism two-way-shooting --num_paths 100 --fixed_length 1000 --states phi-psi --num_steps 50
 python tps_baseline.py --mechanism two-way-shooting --num_paths 1000 --states rmsd
 python eval/evaluate_tps.py
 ```
