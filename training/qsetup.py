@@ -81,6 +81,13 @@ def construct(system: System, model: Optional[nn.module], xi: float, A: ArrayLik
     if args.internal_coordinates:
         # Initialize transform with the initial state (without second order elements)
         transform = aldp.InternalCoordinateWrapper(system.A.reshape(1, -1))
+        # convert A to internal coordinates, but discard the second order elements (if they exist)
+        A_internal = transform.to_internal(A[: system.A.shape[0]].reshape(1, -1)).reshape(-1)
+        assert A_internal.shape == system.A.shape, 'Internal coordinates must not change shapes'
+        A = A.at[:system.A.shape[0]].set(A_internal)
+        B_internal = transform.to_internal(B[: system.A.shape[0]].reshape(1, -1)).reshape(-1)
+        assert B_internal.shape == system.B.shape, 'Internal coordinates must not change shapes'
+        B = B.at[:system.A.shape[0]].set(B_internal)
 
     if args.parameterization == 'diagonal':
         if args.model == 'spline':

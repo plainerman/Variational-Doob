@@ -40,13 +40,21 @@ class InternalCoordinateWrapper:
         self.transform = get_aldp_transform(initial_state)
         self.ndim = initial_state.shape[1]
 
+    def to_internal(self, x: ArrayLike) -> ArrayLike:
+        return self.transform.to_internal(x)
+
     def __call__(self, h: ArrayLike):
         mu, sigma, w_logits = h
         BS, num_gaussians, ndim = mu.shape
         # if ndim > self.ndim, then we have second order terms
         assert ndim == self.ndim or ndim == 2 * self.ndim
 
-        # Convert mu to internal coordinates
-        mu = mu.at[:, :, :self.ndim].set(self.transform.to_cartesian(mu[:, :, :self.ndim].reshape(BS * num_gaussians, self.ndim)).reshape(BS, num_gaussians, self.ndim))
+        # Convert mu to cartesian coordinates
+        mu = mu.at[:, :, :self.ndim].set(
+            self.transform.to_cartesian(
+                mu[:, :, :self.ndim]
+                .reshape(BS * num_gaussians, self.ndim)
+            ).reshape(BS, num_gaussians, self.ndim)
+        )
 
         return mu, sigma, w_logits
