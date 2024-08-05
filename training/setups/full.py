@@ -24,7 +24,7 @@ _dSigmadt_batched = jax.vmap(_dSigmadt_batched, in_axes=(1, 1), out_axes=1)
 _matmul_batched = jax.vmap(_matmul_batched, in_axes=1, out_axes=1)
 
 
-class LowRankSpline(nn.Module):
+class FullRankSpline(nn.Module):
     n_points: int
     interpolation: str
     T: float
@@ -37,8 +37,8 @@ class LowRankSpline(nn.Module):
 
     @nn.compact
     def __call__(self, t):
-        print("WARNING: Mixtures for low rank not yet implemented!")
-        assert self.num_mixtures == 1, "Mixtures for low rank not yet implemented!"
+        print("WARNING: Mixtures for full rank spline not yet implemented!")
+        assert self.num_mixtures == 1, "Mixtures for full rank not yet implemented!"
 
         ndim = self.A.shape[0]
         t = t / self.T
@@ -80,7 +80,7 @@ class LowRankSpline(nn.Module):
         return out
 
 
-class LowRankWrapper(WrappedModule):
+class FullRankWrapper(WrappedModule):
     A: ArrayLike
     B: ArrayLike
     num_mixtures: int
@@ -126,7 +126,7 @@ class LowRankWrapper(WrappedModule):
         return mu, S, w_logits
 
 
-class LowRankSetup(DriftedSetup):
+class FullRankSetup(DriftedSetup):
     def construct_loss(self, state_q: TrainState, gamma: float, BS: int) -> Callable[
         [Union[FrozenVariableDict, Dict[str, Any]], ArrayLike], ArrayLike]:
         def loss_fn(params_q: Union[FrozenVariableDict, Dict[str, Any]], key: ArrayLike) -> ArrayLike:

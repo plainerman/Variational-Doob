@@ -75,7 +75,7 @@ class QSetup(ABC):
 
 def construct(system: System, model: Optional[nn.module], xi: float, A: ArrayLike, B: ArrayLike,
               args: argparse.Namespace) -> QSetup:
-    from training.setups import diagonal, lowrank
+    from training.setups import diagonal, full
 
     transform = None
     if args.internal_coordinates:
@@ -100,15 +100,15 @@ def construct(system: System, model: Optional[nn.module], xi: float, A: ArrayLik
                 model, args.T, transform, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
             )
         return diagonal.DiagonalSetup(system, model, xi, args.ode, args.T)
-    elif args.parameterization == 'low_rank':
+    elif args.parameterization == 'full_rank':
         if args.model == 'spline':
-            model = lowrank.LowRankSpline(
+            model = full.FullRankSpline(
                 args.num_points, args.spline_mode, args.T, transform, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
             )
         else:
-            model = lowrank.LowRankWrapper(
+            model = full.FullRankWrapper(
                 model, args.T, transform, A, B, args.num_gaussians, args.trainable_weights, args.base_sigma
             )
-        return lowrank.LowRankSetup(system, model, xi, args.ode, args.T)
+        return full.FullRankSetup(system, model, xi, args.ode, args.T)
     else:
         raise ValueError(f"Unknown parameterization: {args.parameterization}")

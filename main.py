@@ -39,7 +39,7 @@ parser.add_argument('--temperature', type=float,
 parser.add_argument('--gamma', type=float, required=True)
 
 parser.add_argument('--ode', type=str, choices=['first_order', 'second_order'], required=True)
-parser.add_argument('--parameterization', type=str, choices=['diagonal', 'low_rank'], required=True)
+parser.add_argument('--parameterization', type=str, choices=['diagonal', 'full_rank'], required=True)
 
 # parameters of Q
 parser.add_argument('--num_gaussians', type=int, default=1, help="Number of gaussians in the mixture model.")
