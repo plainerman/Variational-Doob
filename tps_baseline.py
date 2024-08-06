@@ -258,7 +258,8 @@ if __name__ == '__main__':
                                                            args.num_paths, dt_in_ps, jax.random.PRNGKey(1),
                                                            warmup=args.warmup,
                                                            fixed_length=args.fixed_length,
-                                                           stored=stored)
+                                                           stored=stored,
+                                                           max_force_evaluations=10**10)  # 10billion
         # paths = tps2.unguided_md(tps_config, B, 1, key)
         print('Converting paths to jax.numpy arrays.')
         paths = [jnp.array(p) for p in tqdm(paths)]
