@@ -2,6 +2,8 @@ import jax
 import jax.numpy as jnp
 from tqdm import tqdm
 
+from utils.plot import human_format
+
 MAX_STEPS = 2_000
 MAX_ABS_VALUE = 5
 
@@ -153,7 +155,8 @@ def two_way_shooting(system, trajectory, _previous_velocities, fixed_length, _dt
     return False, new_trajectory, new_velocities
 
 
-def mcmc_shooting(system, proposal, initial_trajectory, num_paths, dt, key, fixed_length=0, warmup=50, stored=None):
+def mcmc_shooting(system, proposal, initial_trajectory, num_paths, dt, key, fixed_length=0, warmup=50, stored=None,
+                  max_force_evaluations=10 ** 10):
     # pick an initial trajectory
     trajectories = [initial_trajectory]
     velocities = []
@@ -177,6 +180,7 @@ def mcmc_shooting(system, proposal, initial_trajectory, num_paths, dt, key, fixe
     num_tries = 0
     num_force_evaluations = 0
     num_metropolis_rejected = 0
+    total_num_force_evaluations = sum(statistics['num_force_evaluations'])
     try:
         with tqdm(total=num_paths + warmup, initial=len(trajectories) - 1,
                   desc='warming up' if warmup > 0 else '') as pbar:
@@ -197,6 +201,9 @@ def mcmc_shooting(system, proposal, initial_trajectory, num_paths, dt, key, fixe
                                                                      trajectories) > 1 else None,
                                                                  fixed_length, dt, ikey)
                 num_force_evaluations += len(new_trajectory) - 1
+                total_num_force_evaluations += len(new_trajectory) - 1
+
+                pbar.set_postfix({'total_force_evaluations': human_format(total_num_force_evaluations)})
 
                 if not found:
                     continue
@@ -218,6 +225,10 @@ def mcmc_shooting(system, proposal, initial_trajectory, num_paths, dt, key, fixe
                     pbar.update(1)
                 else:
                     num_metropolis_rejected += 1
+
+                if total_num_force_evaluations > max_force_evaluations:
+                    print('Max force evaluations reached, stopping early')
+                    break
     except KeyboardInterrupt:
         print('SIGINT received, stopping early')
         # Fix in case we stop when adding a trajectory

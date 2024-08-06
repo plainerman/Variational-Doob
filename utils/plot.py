@@ -12,6 +12,23 @@ from tqdm import tqdm
 from flax.training.train_state import TrainState
 
 
+def human_format(num):
+    """https://stackoverflow.com/a/45846841/4417954"""
+    num = float('{:.3g}'.format(num))
+    if num >= 1:
+        magnitude = 0
+        while abs(num) >= 1000:
+            magnitude += 1
+            num /= 1000.0
+        return '{}{}'.format('{:f}'.format(num).rstrip('0').rstrip('.'), ['', 'K', 'M', 'B', 'T'][magnitude])
+    else:
+        magnitude = 0
+        while abs(num) < 1:
+            magnitude += 1
+            num *= 1000.0
+        return '{}{}'.format('{:f}'.format(num).rstrip('0').rstrip('.'), ['', 'm', 'µ', 'n', 'p', 'f'][magnitude])
+
+
 def log_scale(log_plot: bool, x: bool, y: bool):
     if log_plot:
         if x:

@@ -20,14 +20,14 @@ from matplotlib import colors
 
 from utils.angles import phi_psi_from_mdtraj
 from utils.animation import save_trajectory, to_md_traj
-from utils.plot import show_or_save_fig
+from utils.plot import show_or_save_fig, human_format
 from utils.rmsd import kabsch_align, kabsch_rmsd
 
 from argparse import ArgumentParser
 
 parser = ArgumentParser()
 parser.add_argument('--mechanism', type=str, choices=['one-way-shooting', 'two-way-shooting'], required=True)
-parser.add_argument('--states', type=str, default='phi-psi', choices=['phi-psi', 'rmsd'])
+parser.add_argument('--states', type=str, default='phi-psi', choices=['phi-psi', 'rmsd', 'exact'])
 parser.add_argument('--fixed_length', type=int, default=0)
 parser.add_argument('--warmup', type=int, default=0)
 parser.add_argument('--num_paths', type=int, required=True)
@@ -37,23 +37,6 @@ parser.add_argument('--resume', action='store_true')
 parser.add_argument('--override', action='store_true')
 parser.add_argument('--ensure_connected', action='store_true',
                     help='Ensure that the initial path connects A with B by prepending A and appending B.')
-
-
-def human_format(num):
-    """https://stackoverflow.com/a/45846841/4417954"""
-    num = float('{:.3g}'.format(num))
-    if num >= 1:
-        magnitude = 0
-        while abs(num) >= 1000:
-            magnitude += 1
-            num /= 1000.0
-        return '{}{}'.format('{:f}'.format(num).rstrip('0').rstrip('.'), ['', 'K', 'M', 'B', 'T'][magnitude])
-    else:
-        magnitude = 0
-        while abs(num) < 1:
-            magnitude += 1
-            num *= 1000.0
-        return '{}{}'.format('{:f}'.format(num).rstrip('0').rstrip('.'), ['', 'm', 'µ', 'n', 'p', 'f'][magnitude])
 
 
 dt_as_unit = unit.Quantity(value=1, unit=unit.femtosecond)
@@ -101,6 +84,8 @@ if __name__ == '__main__':
         savedir += f'-{args.fixed_length}steps'
     if args.states == 'rmsd':
         savedir += '-rmsd'
+    elif args.states == 'exact':
+        savedir += '-exact'
 
     os.makedirs(savedir, exist_ok=True)
 
@@ -117,6 +102,7 @@ if __name__ == '__main__':
         x_empty = jnp.zeros((padded_length, 66))
         x = x_empty.at[:x.shape[0], :].set(x.reshape(-1, 66))
         return system.U(x)[:orig_length]
+
 
     @jax.jit
     def step(_x, _key):
@@ -197,6 +183,19 @@ if __name__ == '__main__':
         state_B = jax.jit(
             lambda s: is_within(phis_psis(s.reshape(-1, 22, 3)).reshape(-1, 2), phis_psis(system.B.reshape(-1, 22, 3)),
                                 radius))
+    elif args.states == 'exact':
+        from scipy.stats import chi2
+        percentile = 0.99
+        noise_scale = 1e-4
+        threshold = jnp.sqrt(chi2.ppf(percentile, system.A.shape[0]) * noise_scale)
+        print(threshold)
+        def kabsch_l2(A, B):
+            a, b = kabsch_align(A, B)
+
+            return jnp.linalg.norm(a - b)
+
+        state_A = jax.jit(jax.vmap(lambda s: kabsch_l2(system.A.reshape(22, 3), s.reshape(22, 3)) <= threshold))
+        state_B = jax.jit(jax.vmap(lambda s: kabsch_l2(system.B.reshape(22, 3), s.reshape(22, 3)) <= threshold))
     else:
         raise ValueError(f"Unknown states {args.states}")
 
@@ -216,9 +215,10 @@ if __name__ == '__main__':
     save_trajectory(system.mdtraj_topology, jnp.array(initial_trajectory), f'{savedir}/initial_trajectory.pdb')
 
     if args.resume:
-        paths = [[x for x in p.astype(np.float32)] for p in np.load(f'{savedir}/paths.npy', allow_pickle=True)]
+        print('Loading stored data.')
+        paths = [[x for x in p.astype(np.float32)] for p in tqdm(np.load(f'{savedir}/paths.npy', allow_pickle=True))]
         velocities = [[v for v in p.astype(np.float32)] for p in
-                      np.load(f'{savedir}/velocities.npy', allow_pickle=True)]
+                      tqdm(np.load(f'{savedir}/velocities.npy', allow_pickle=True))]
         with open(f'{savedir}/stats.json', 'r') as fp:
             statistics = json.load(fp)
 
@@ -227,6 +227,8 @@ if __name__ == '__main__':
             'velocities': velocities,
             'statistics': statistics
         }
+
+        print('Loaded', len(paths), 'paths.')
     else:
         if os.path.exists(f'{savedir}/paths.npy') and not args.override:
             print(f"The target directory is not empty.\n"
@@ -235,8 +237,8 @@ if __name__ == '__main__':
 
         stored = None
 
-    assert ((tps_config.start_state(system.A) and tps_config.target_state(system.B))
-            or (tps_config.start_state(system.B) and tps_config.target_state(system.A))), \
+    assert ((tps_config.start_state(system.A.reshape(1, -1)) and tps_config.target_state(system.B.reshape(1, -1)))
+            or (tps_config.start_state(system.B.reshape(1, -1)) and tps_config.target_state(system.A.reshape(1, -1)))), \
         'A and B are not in the correct states. Please check your settings.'
 
     if args.mechanism == 'one-way-shooting':
@@ -258,14 +260,19 @@ if __name__ == '__main__':
                                                            fixed_length=args.fixed_length,
                                                            stored=stored)
         # paths = tps2.unguided_md(tps_config, B, 1, key)
-        paths = [jnp.array(p) for p in paths]
-        velocities = [jnp.array(p) for p in velocities]
-        # store paths
-        np.save(f'{savedir}/paths.npy', np.array(paths, dtype=object), allow_pickle=True)
-        np.save(f'{savedir}/velocities.npy', np.array(velocities, dtype=object), allow_pickle=True)
-        # save statistics, which is a dictionary
-        with open(f'{savedir}/stats.json', 'w') as fp:
-            json.dump(statistics, fp)
+        print('Converting paths to jax.numpy arrays.')
+        paths = [jnp.array(p) for p in tqdm(paths)]
+        velocities = [jnp.array(p) for p in tqdm(velocities)]
+
+        if not args.resume:
+            # If we are resuming, everything is already stored
+            print('Storing paths ...')
+            np.save(f'{savedir}/paths.npy', np.array(paths, dtype=object), allow_pickle=True)
+            print('Storing velocities ...')
+            np.save(f'{savedir}/velocities.npy', np.array(velocities, dtype=object), allow_pickle=True)
+            # save statistics, which is a dictionary
+            with open(f'{savedir}/stats.json', 'w') as fp:
+                json.dump(statistics, fp)
     except Exception as e:
         print(traceback.format_exc())
         breakpoint()
@@ -280,8 +287,11 @@ if __name__ == '__main__':
     if args.fixed_length == 0:
         print([len(p) for p in paths])
         plt.hist([len(p) for p in paths], bins=jnp.sqrt(len(paths)).astype(int).item())
-        plt.savefig(f'{savedir}/lengths.png', bbox_inches='tight')
-        plt.show()
+        show_or_save_fig(savedir, 'lengths', 'png')
+
+    max_energy = [jnp.max(U_padded(path)) for path in tqdm(paths)]
+    max_energy = np.array(max_energy)
+    np.save(f'{savedir}/max_energy.npy', max_energy)
 
     plt.title(f"{human_format(len(paths))} paths @ {temp} K, dt = {human_format(dt)}s")
     system.plot(trajectories=paths, alpha=0.7)
