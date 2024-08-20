@@ -1,4 +1,7 @@
 from argparse import ArgumentParser
+
+import numpy as np
+
 from utils.animation import save_trajectory
 from utils.args import parse_args, str2bool
 from systems import System
@@ -217,6 +220,7 @@ def main():
     key, path_key = jax.random.split(key)
     x_t_stoch = setup.sample_paths(state_q, x_0, args.dt, args.T, args.BS, path_key)
     x_t_stoch_no_vel = x_t_stoch[:, :, :system.A.shape[0]]
+    np.save(f'{args.save_dir}/stochastic_paths.npy', x_t_stoch_no_vel)
 
     if system.mdtraj_topology:
         save_trajectory(system.mdtraj_topology, x_t_stoch_no_vel[0].reshape(1, -1, 3), f'{args.save_dir}/stoch_0.pdb')
