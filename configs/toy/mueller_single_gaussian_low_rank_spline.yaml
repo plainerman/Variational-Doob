@@ -1,0 +1,22 @@
+save_dir: ./out/toy/mueller_single_gaussian_low_rank_spline
+
+test_system: mueller_brown
+ode: first_order
+parameterization: low_rank
+T: 275e-4
+xi: 5.0
+gamma: 1.0
+
+model: spline
+num_points: 25
+
+num_gaussians: 1
+trainable_weights: False
+base_sigma: 2.5e-2
+
+epochs: 100000
+save_interval: 10000
+BS: 512
+
+num_paths: 1000
+dt: 1e-4

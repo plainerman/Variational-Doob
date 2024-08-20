@@ -1,0 +1,27 @@
+save_dir: ./out/aldp_diagonal_single_gaussian
+
+start: ./files/chignolin_folded_relaxed.pdb
+target: ./files/chignolin_unfolded_relaxed.pdb
+
+ode: second_order
+parameterization: diagonal
+T: 1.0
+temperature: 300
+gamma: 1.0
+
+num_gaussians: 1
+trainable_weights: False
+base_sigma: 1e-4
+
+hidden_layers: 512 512 512 512 512
+activation: swish
+resnet: False
+
+epochs: 100000
+BS: 128
+force_clip: 1e6
+
+num_paths: 256
+dt: 1e-3
+
+log_plots: True

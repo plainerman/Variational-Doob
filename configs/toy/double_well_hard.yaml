@@ -1,0 +1,18 @@
+save_dir: ./out/toy/double_well_hard
+
+test_system: double_well_hard
+ode: first_order
+parameterization: diagonal
+T: 1.0
+xi: 1.0
+gamma: 1.0
+
+num_gaussians: 1
+trainable_weights: False
+base_sigma: 0.1
+
+epochs: 2500
+BS: 512
+
+num_paths: 100
+dt: 5e-4

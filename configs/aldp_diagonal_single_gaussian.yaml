@@ -1,0 +1,28 @@
+save_dir: ./out/aldp_diagonal_single_gaussian
+
+start: ./files/AD_A.pdb
+target: ./files/AD_B.pdb
+cv: phi_psi
+
+ode: second_order
+parameterization: diagonal
+T: 1.0
+temperature: 300
+gamma: 1.0
+
+num_gaussians: 1
+trainable_weights: False
+base_sigma: 1e-4
+
+hidden_layers: 256 256 256 256 256 256 256
+activation: relu
+resnet: True
+
+epochs: 50
+BS: 256
+force_clip: 1e7
+
+num_paths: 256
+dt: 1e-3
+
+log_plots: True

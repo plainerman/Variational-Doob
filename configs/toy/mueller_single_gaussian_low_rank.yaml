@@ -1,0 +1,18 @@
+save_dir: ./out/toy/mueller_single_gaussian_low_rank
+
+test_system: mueller_brown
+ode: first_order
+parameterization: low_rank
+T: 275e-4
+xi: 5.0
+gamma: 1.0
+
+num_gaussians: 1
+trainable_weights: False
+base_sigma: 2.5e-2
+
+epochs: 2500
+BS: 512
+
+num_paths: 1000
+dt: 1e-4
