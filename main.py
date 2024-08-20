@@ -237,7 +237,12 @@ def main():
         show_or_save_fig(args.save_dir, 'path_energy_stochastic', args.extension)
 
         system.plot(title='Stochastic Paths', trajectories=x_t_stoch_no_vel)
-        show_or_save_fig(args.save_dir, 'paths_stochastic', args.extension)
+        trajectories_to_plot = 2
+        colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        idx = jax.random.permutation(jax.random.PRNGKey(args.seed), x_t_stoch_no_vel.shape[0])[:trajectories_to_plot]
+        for i, c in zip(idx, colors[1:]):
+            plt.plot(x_t_stoch_no_vel[i, :, 0].T, x_t_stoch_no_vel[i, :, 1].T, c=c)
+        show_or_save_fig(args.save_dir, 'paths_stochastic_and_individual', args.extension)
 
 
 if __name__ == '__main__':
