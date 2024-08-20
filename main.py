@@ -85,6 +85,7 @@ parser.add_argument('--num_paths', type=int, default=1000, help="The number of p
 parser.add_argument('--dt', type=float, required=True)
 
 # plotting
+parser.add_argument('--no_plots', type=str2bool, nargs='?', const=True, default=False, help="Disable all plots.")
 parser.add_argument('--log_plots', type=str2bool, nargs='?', const=True, default=False,
                     help="Save plots in log scale where possible")
 parser.add_argument('--extension', type=str, default='pdf', help="Extension of the saved plots.")
@@ -106,6 +107,9 @@ def main():
         system = System.from_name(args.test_system, args.force_clip)
     else:
         system = System.from_pdb(args.start, args.target, args.forcefield, args.cv, args.force_clip)
+
+    if args.no_plots:
+        system.plot = None
 
     if args.xi:
         xi = args.xi
@@ -182,13 +186,12 @@ def main():
     log_scale(args.log_plots, False, True)
     show_or_save_fig(args.save_dir, 'loss_plot', args.extension)
 
+    t = args.T * jnp.linspace(0, 1, args.BS, dtype=jnp.float32).reshape((-1, 1))
+    key, path_key = jax.random.split(key)
+    mu_t, _, w_logits = state_q.apply_fn(state_q.params, t)
+    w = jax.nn.softmax(w_logits)
+    print('Weights of mixtures:', w)
     if system.plot:
-        t = args.T * jnp.linspace(0, 1, args.BS, dtype=jnp.float32).reshape((-1, 1))
-        key, path_key = jax.random.split(key)
-        mu_t, _, w_logits = state_q.apply_fn(state_q.params, t)
-        w = jax.nn.softmax(w_logits)
-        print('Weights of mixtures:', w)
-
         mu_t_no_vel = mu_t[:, :, :system.A.shape[0]]
         num_trajectories = jnp.array((w * 100).round(), dtype=int)
 
