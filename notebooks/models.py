@@ -39,7 +39,7 @@ class MLPfull(nn.Module):
   A: float
   B: float
   ndim: int
-  xi_0: float = 1e-2
+  xi_0: float = 2.5e-2
   @nn.compact
   def __call__(self, t):
     t = t/self.T
@@ -74,7 +74,7 @@ class MLPdiag(nn.Module):
   A: float
   B: float
   ndim: int
-  xi_0: float = 1e-2
+  xi_0: float = 2.5e-2
   @nn.compact
   def __call__(self, t):
     t = t/self.T
