@@ -186,11 +186,11 @@ def main():
         t = args.T * jnp.linspace(0, 1, args.BS, dtype=jnp.float32).reshape((-1, 1))
         key, path_key = jax.random.split(key)
         mu_t, _, w_logits = state_q.apply_fn(state_q.params, t)
-        w = jax.nn.softmax(w_logits)[None, :, None]
+        w = jax.nn.softmax(w_logits)
         print('Weights of mixtures:', w)
 
         mu_t_no_vel = mu_t[:, :, :system.A.shape[0]]
-        num_trajectories = jnp.array((w.squeeze() * 100).round(), dtype=int)
+        num_trajectories = jnp.array((w * 100).round(), dtype=int)
 
         trajectories = jnp.swapaxes(mu_t_no_vel, 0, 1)
         trajectories = (jnp.vstack([trajectories[i].repeat(n, axis=0) for i, n in enumerate(num_trajectories) if n > 0])
@@ -200,6 +200,7 @@ def main():
         show_or_save_fig(args.save_dir, 'mean_paths', args.extension)
 
     if system.plot and system.A.shape[0] == 2:
+        print('Animating gif, this might take a few seconds ...')
         plot_u_t(system, setup, state_q, args.T, args.save_dir, 'u_t', frames=100)
 
     key, init_key = jax.random.split(key)
