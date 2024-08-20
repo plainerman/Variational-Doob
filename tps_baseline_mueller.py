@@ -83,6 +83,7 @@ if __name__ == '__main__':
             with open(f'{save_dir}/stats-{name}.json', 'r') as fp:
                 statistics = json.load(fp)
         else:
+            print('Generating paths for', name)
             paths, statistics = tps1.mcmc_shooting(tps_config, method, initial_trajectory, num_paths,
                                                    jax.random.PRNGKey(1), warmup=0, fixed_length=N)
 

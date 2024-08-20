@@ -34,8 +34,12 @@ class System:
     def from_name(cls, name: str, force_clip: float) -> Self:
         if name == 'double_well':
             U, A, B = potentials.double_well
+            xlim = jnp.array((-2.0, 2.0))
+            ylim = jnp.array((-2.5, 2.5))
         elif name == 'double_well_hard':
             U, A, B = potentials.double_well_hard
+            xlim = jnp.array((-6.0, 6.0))
+            ylim = jnp.array((-4.0, 4.0))
         elif name == 'double_well_dual_channel':
             U, A, B = potentials.double_well_dual_channel
             xlim = jnp.array((-1.0, 1.0))
