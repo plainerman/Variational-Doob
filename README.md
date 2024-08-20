@@ -13,8 +13,7 @@ conda env create -f environment.yml
 
 ## Getting started
 
-The best way to get started is to look at the jupyter notebooks which contain code for the Müller-Brown potential.
-There is one for the [first order Langevin dynamics](notebooks/tps_gaussian.ipynb) and one for the [second order Langevin dynamics](notebooks/tps_gaussian_2nd.ipynb).
+The best way to get started is to look at [the jupyter notebook](notebooks/tps_gaussian.ipynb which contains all code for 2D potentials in one place.
 
 ## Running the baselines
 
@@ -22,6 +21,7 @@ To run the baselines (i.e., TPS with shooting) you can run
 
 ```bash
 python tps_baseline_mueller.py
+# For this to work, you need to specify which baselines to run by changing the all_paths variable in the script
 python eval/evaluate_mueller.py
 ```
 
