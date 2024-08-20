@@ -13,7 +13,7 @@ conda env create -f environment.yml
 
 ## Getting started
 
-The best way to get started is to look at [the jupyter notebook](notebooks/tps_gaussian.ipynb which contains all code for 2D potentials in one place.
+The best way to get started is to look at [the jupyter notebook](notebooks/tps_gaussian.ipynb) which contains all code for 2D potentials in one place.
 
 ## Running the baselines
 
