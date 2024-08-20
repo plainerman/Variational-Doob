@@ -182,19 +182,25 @@ def main():
     log_scale(args.log_plots, False, True)
     show_or_save_fig(args.save_dir, 'loss_plot', args.extension)
 
-    print("!!!TODO: how to plot this nicely?")
-    # t = args.T * jnp.linspace(0, 1, args.BS, dtype=jnp.float32).reshape((-1, 1))
-    # key, path_key = jax.random.split(key)
-    # eps = jax.random.normal(path_key, [args.BS, args.num_gaussians, A.shape[-1]])
-    # mu_t, sigma_t, w_logits = state_q.apply_fn(state_q.params, t)
-    # w = jax.nn.softmax(w_logits)[None, :, None]
-    # samples = (w * (mu_t + sigma_t * eps)).sum(axis=1)
+    if system.plot:
+        t = args.T * jnp.linspace(0, 1, args.BS, dtype=jnp.float32).reshape((-1, 1))
+        key, path_key = jax.random.split(key)
+        mu_t, _, w_logits = state_q.apply_fn(state_q.params, t)
+        w = jax.nn.softmax(w_logits)[None, :, None]
+        print('Weights of mixtures:', w)
 
-    # plot_energy_surface()
-    # plt.scatter(samples[:, 0], samples[:, 1])
-    # plt.scatter(A[0, 0], A[0, 1], color='red')
-    # plt.scatter(B[0, 0], B[0, 1], color='orange')
-    # plt.show()
+        mu_t_no_vel = mu_t[:, :, :system.A.shape[0]]
+        num_trajectories = jnp.array((w.squeeze() * 100).round(), dtype=int)
+
+        trajectories = jnp.swapaxes(mu_t_no_vel, 0, 1)
+        trajectories = (jnp.vstack([trajectories[i].repeat(n, axis=0) for i, n in enumerate(num_trajectories) if n > 0])
+                        .reshape(num_trajectories.sum(), -1, mu_t_no_vel.shape[2]))
+
+        system.plot(title='Weighted mean paths', trajectories=trajectories)
+        show_or_save_fig(args.save_dir, 'mean_paths', args.extension)
+
+    if system.plot and system.A.shape[0] == 2:
+        plot_u_t(system, setup, state_q, args.T, args.save_dir, 'u_t', frames=100)
 
     key, init_key = jax.random.split(key)
     x_0 = jnp.ones((args.num_paths, A.shape[0]), dtype=jnp.float32) * A
