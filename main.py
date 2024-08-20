@@ -141,7 +141,6 @@ def main():
     key, init_key = jax.random.split(key)
 
     params_q = setup.model_q.init(init_key, jnp.zeros([args.BS, 1], dtype=jnp.float32))
-    print(params_q)
 
     optimizer_q = optax.adam(learning_rate=args.lr)
     state_q = train_state.TrainState.create(apply_fn=setup.model_q.apply, params=params_q, tx=optimizer_q)
