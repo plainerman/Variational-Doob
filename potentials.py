@@ -2,11 +2,17 @@ import jax.numpy as jnp
 
 
 def U_double_well(xs, a=1.0, b=-4.0, c=0, d=1.0, beta=1.0):
+    if xs.ndim == 1:
+        xs = xs.reshape(1, -1)
+
     x, y = xs[:, 0], xs[:, 1]
     return beta * (a * (x ** 4) + b * (x ** 2) + c * x + 0.5 * d * (y ** 2))
 
 
 def U_double_well_hard(xs, beta=1.0):
+    if xs.ndim == 1:
+        xs = xs.reshape(1, -1)
+
     A = jnp.array([[-3, 0]])
     B = jnp.array([[3, 0]])
     U1 = -(((xs - A) @ jnp.array([[1, 0.5], [0.5, 1.0]])) * (xs - A)).sum(1)
@@ -16,6 +22,9 @@ def U_double_well_hard(xs, beta=1.0):
 
 
 def U_double_well_dual_channel(xs, beta=1.0):
+    if xs.ndim == 1:
+        xs = xs.reshape(1, -1)
+
     x, y = xs[:, 0], xs[:, 1]
     borders = x ** 6 + y ** 6
     e1 = +2.0 * jnp.exp(-(12.0 * (x - 0.00) ** 2 + 12.0 * (y - 0.00) ** 2))
@@ -25,6 +34,9 @@ def U_double_well_dual_channel(xs, beta=1.0):
 
 
 def U_mueller_brown(xs, beta=1.0):
+    if xs.ndim == 1:
+        xs = xs.reshape(1, -1)
+
     x, y = xs[:, 0], xs[:, 1]
     e1 = -200 * jnp.exp(-(x - 1) ** 2 - 10 * y ** 2)
     e2 = -100 * jnp.exp(-x ** 2 - 10 * (y - 0.5) ** 2)

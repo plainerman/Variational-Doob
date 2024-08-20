@@ -2,8 +2,8 @@ import numpy as np
 import jax.numpy as jnp
 import jax
 from eval.path_metrics import plot_path_energy
+from systems import System
 from tps.paths import decorrelated
-from tps_baseline_mueller import U, dUdx_fn
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import os
@@ -14,6 +14,8 @@ kbT = xi ** 2 / 2
 dt = 1e-4
 T = 275e-4
 N = int(T / dt)
+
+system = System.from_name('mueller_brown', float('inf'))
 
 minima_points = jnp.array([[-0.55828035, 1.44169],
                            [-0.05004308, 0.46666032],
@@ -27,8 +29,17 @@ def load(path):
 
 @jax.jit
 def log_path_likelihood(path):
-    rand = path[1:] - path[:-1] + dt * dUdx_fn(path[:-1])
-    return (-U(path[0]) / kbT).sum() + jax.scipy.stats.norm.logpdf(rand, scale=jnp.sqrt(dt) * xi).sum()
+    rand = path[1:] - path[:-1] + dt * system.dUdx(path[:-1])
+    return (-system.U(path[0]) / kbT).sum() + jax.scipy.stats.norm.logpdf(rand, scale=jnp.sqrt(dt) * xi).sum()
+
+
+def plot_hist(system, paths, trajectories_to_plot, seed=1):
+    system.plot(trajectories=paths)
+    colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+    idx = jax.random.permutation(jax.random.PRNGKey(seed), len(paths))[:trajectories_to_plot]
+    for i, c in zip(idx, colors[1:]):
+        cur_paths = jnp.array(paths[i])
+        plt.plot(cur_paths[:, 0].T, cur_paths[:, 1].T, c=c)
 
 
 if __name__ == '__main__':
@@ -43,19 +54,29 @@ if __name__ == '__main__':
         ('var-doobs', './out/var_doobs/mueller/paths.npy', 0),
     ]
 
-    global_minimum_energy = U(minima_points[0])
+    global_minimum_energy = min(system.U(minima_points))
     for point in minima_points:
-        global_minimum_energy = min(global_minimum_energy, minimize(U, point).fun)
+        global_minimum_energy = min(global_minimum_energy, minimize(system.U, point).fun)
     print("Global minimum energy", global_minimum_energy)
 
     all_paths = [(name, load(path)[warmup:],) for name, path, warmup in all_paths]
     [print(name, len(path)) for name, path in all_paths]
 
     for name, paths in all_paths:
+        # for this plot we limit ourselves to 250 paths
+        plot_hist(system, paths[:250], 2)
+        plt.savefig(f'{savedir}/{name}-histogram.pdf', bbox_inches='tight')
+        plt.show()
+
+        plot_hist(system, decorrelated(paths)[:250], 2)
+        plt.savefig(f'{savedir}/{name}-decorrelated-histogram.pdf', bbox_inches='tight')
+        plt.show()
+
+    for name, paths in all_paths:
         print(name, 'decorrelated trajectories:', jnp.round(100 * len(decorrelated(paths)) / len(paths), 2), '%')
 
     for name, paths in all_paths:
-        max_energy = plot_path_energy(paths, U, add=-global_minimum_energy, label=name) + global_minimum_energy
+        max_energy = plot_path_energy(paths, system.U, add=-global_minimum_energy, label=name) + global_minimum_energy
         print(name, 'max energy mean:', jnp.round(jnp.mean(max_energy), 2), 'std:', jnp.round(jnp.std(max_energy), 2))
         print(name, 'min max energy: ', jnp.round(jnp.min(max_energy), 2))
 
@@ -65,7 +86,7 @@ if __name__ == '__main__':
     plt.show()
 
     for name, paths in all_paths:
-        plot_path_energy(paths, U, add=-global_minimum_energy, reduce=jnp.median, label=name)
+        plot_path_energy(paths, system.U, add=-global_minimum_energy, reduce=jnp.median, label=name)
 
     plt.legend()
     plt.ylabel('Median energy')
