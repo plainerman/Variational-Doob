@@ -1,15 +1,15 @@
 import argparse
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, Optional, Union, Dict, Any
 from flax import linen as nn
 from flax.training.train_state import TrainState
+from flax.typing import FrozenVariableDict
 from systems import System
 from jax.typing import ArrayLike
 import jax.numpy as jnp
 import jax
 from tqdm import trange
-import utils.aldp as aldp
 
 
 @dataclass
@@ -79,6 +79,8 @@ def construct(system: System, model: Optional[nn.module], xi: float, A: ArrayLik
 
     transform = None
     if args.internal_coordinates:
+        import utils.aldp as aldp
+
         # Initialize transform with the initial state (without second order elements)
         transform = aldp.InternalCoordinateWrapper(system.A.reshape(1, -1))
         # convert A to internal coordinates, but discard the second order elements (if they exist)

@@ -191,20 +191,6 @@ def main():
     mu_t, _, w_logits = state_q.apply_fn(state_q.params, t)
     w = jax.nn.softmax(w_logits)
     print('Weights of mixtures:', w)
-    if system.plot:
-        mu_t_no_vel = mu_t[:, :, :system.A.shape[0]]
-        num_trajectories = jnp.array((w * 100).round(), dtype=int)
-
-        trajectories = jnp.swapaxes(mu_t_no_vel, 0, 1)
-        trajectories = (jnp.vstack([trajectories[i].repeat(n, axis=0) for i, n in enumerate(num_trajectories) if n > 0])
-                        .reshape(num_trajectories.sum(), -1, mu_t_no_vel.shape[2]))
-
-        system.plot(title='Weighted mean paths', trajectories=trajectories)
-        show_or_save_fig(args.save_dir, 'mean_paths', args.extension)
-
-    if system.plot and system.A.shape[0] == 2:
-        print('Animating gif, this might take a few seconds ...')
-        plot_u_t(system, setup, state_q, args.T, args.save_dir, 'u_t', frames=100)
 
     key, init_key = jax.random.split(key)
     x_0 = jnp.ones((args.num_paths, A.shape[0]), dtype=jnp.float32) * A
@@ -228,6 +214,17 @@ def main():
         save_trajectory(system.mdtraj_topology, x_t_stoch_no_vel[-1].reshape(1, -1, 3), f'{args.save_dir}/stoch_-1.pdb')
 
     if system.plot:
+        mu_t_no_vel = mu_t[:, :, :system.A.shape[0]]
+        num_trajectories = jnp.array((w * 100).round(), dtype=int)
+
+        trajectories = jnp.swapaxes(mu_t_no_vel, 0, 1)
+        trajectories = (
+            jnp.vstack([trajectories[i].repeat(n, axis=0) for i, n in enumerate(num_trajectories) if n > 0])
+            .reshape(num_trajectories.sum(), -1, mu_t_no_vel.shape[2]))
+
+        system.plot(title='Weighted mean paths', trajectories=trajectories)
+        show_or_save_fig(args.save_dir, 'mean_paths', args.extension)
+
         plot_energy(system, [x_t_det_no_vel[0], x_t_det_no_vel[-1]], args.log_plots)
         show_or_save_fig(args.save_dir, 'path_energy_deterministic', args.extension)
 
@@ -247,6 +244,10 @@ def main():
         for i, c in zip(idx, colors[1:]):
             plt.plot(x_t_stoch_no_vel[i, :, 0].T, x_t_stoch_no_vel[i, :, 1].T, c=c)
         show_or_save_fig(args.save_dir, 'paths_stochastic_and_individual', args.extension)
+
+        if system.A.shape[0] == 2:
+            print('Animating gif, this might take a few seconds ...')
+            plot_u_t(system, setup, state_q, args.T, args.save_dir, 'u_t', frames=100)
 
 
 if __name__ == '__main__':
