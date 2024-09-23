@@ -1,4 +1,4 @@
-save_dir: ./out/aldp_diagonal_single_gaussian
+save_dir: ./out/aldp_diagonal_single_gaussian_internal
 
 start: ./files/AD_A.pdb
 target: ./files/AD_B.pdb
@@ -11,15 +11,15 @@ temperature: 300
 gamma: 1.0
 
 num_gaussians: 1
-trainable_weights: True
+trainable_weights: False
 base_sigma: 1e-5
-internal_coordinates: False
+internal_coordinates: True
 
 hidden_layers: 256 256 256 256 256
 activation: relu
 resnet: True
 
-epochs: 150000
+epochs: 200000
 BS: 256
 force_clip: 1e7
 
