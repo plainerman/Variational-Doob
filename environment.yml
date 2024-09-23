@@ -1,4 +1,4 @@
-name: tps-flow-md
+name: variational-doob
 channels:
   - defaults
   - conda-forge
