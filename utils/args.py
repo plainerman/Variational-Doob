@@ -5,6 +5,9 @@ import yaml
 
 def parse_args(parser: ArgumentParser):
     args = sys.argv[1:]
+    if args.count('--config') <= 0:
+        return parser.parse_args()
+
     conf = args.index('--config')
     if conf >= 0 and conf + 1 < len(args):
         config_file = args[conf + 1]
