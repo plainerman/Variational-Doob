@@ -1,8 +1,8 @@
 <h1 align="center">Doob’s Lagrangian: A Sample-Efficient Variational Approach to Transition Path Sampling</h1>
 <p align="center">
-<a href="https://github.com/plainerman/variational-doob"><img src="https://img.shields.io/badge/language-python%20-%2300599C.svg?style=for-the-badge" alt="Built with Python"/></a>
-<a href="https://github.com/jax-ml/jax"><img src="https://img.shields.io/badge/library-JAX-5f0964?style=for-the-badge" alt="Jax"/></a>
+<a href="https://github.com/plainerman/variational-doob"><img src="https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54" alt="Built with Python"/></a>
 <a href="https://github.com/plainerman/Variational-Doob/blob/main/notebooks/tps_gaussian.ipynb"><img src="https://img.shields.io/badge/jupyter-%23FA0F00.svg?style=for-the-badge&logo=jupyter&logoColor=white" alt="Jupyter"/></a>
+<a href="https://github.com/jax-ml/jax"><img src="https://img.shields.io/badge/library-JAX-5f0964?style=for-the-badge" alt="Jax"/></a>
 </p>
 <p align="center">
 A novel variational approach to transition path sampling (TPS) based on the Doob’s h-transform. Our method can be used to sample transition paths between two meta-stable states of molecular systems.
