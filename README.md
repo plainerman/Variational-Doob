@@ -6,10 +6,11 @@ In this work, we propose a novel variational approach to transition path samplin
 ## Setup
 
 You can use the `environment.yml` file to setup this project. However, it only works on CPU.
-
 ```bash
 conda env create -f environment.yml
 ```
+
+We also provide a requirements.txt, however, it is not guaranteed to work.
 
 ## Getting started
 
@@ -25,7 +26,7 @@ python tps_baseline_mueller.py
 python eval/evaluate_mueller.py
 ```
 
-and 
+for a toy-potential and 
 
 ```bash
 python tps_baseline.py --mechanism two-way-shooting --num_paths 1000 --states phi-psi
@@ -35,7 +36,7 @@ python tps_baseline.py --mechanism two-way-shooting --num_paths 1000 --states rm
 python eval/evaluate_tps.py
 ```
 
-respectively. In both cases, you might need to change the paths that you want to evaluate.
+for ALDP respectively. In both cases, you might need to change the paths that you want to evaluate.
 
 ## Run our method
 To sample trajectories with our method, we provide ready to go config files in `configs/`. You can run them with
