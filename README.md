@@ -6,9 +6,9 @@
 <p align="center">
 A novel variational approach to transition path sampling (TPS) based on the Doob’s h-transform. Our method can be used to sample transition paths between two meta-stable states of molecular systems.
 </p>
-
-
-![Visualization of alanine dipeptide transitioning between two meta-stable states](visualizations/aldp.gif)
+<p align="center">
+<img src="visualizations/aldp.gif" alt="Visualization of alanine dipeptide transitioning between two meta-stable states"/>
+</p>
 
 ## Setup
 
