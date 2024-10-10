@@ -31,8 +31,7 @@ to install the dependencies and setup a virtual environment. Either activate the
 The best way to get started is to look at [the jupyter notebook](notebooks/tps_gaussian.ipynb) which contains the necessary code for 2D potentials in one place.
 
 ## Running the baselines
-
-To run the baselines (i.e., TPS with shooting) you can run
+You can either use the TPS shooting baselines [provided by us](https://github.com/plainerman/variational-doob/releases/tag/camera-ready), or re-create them by running
 
 ```bash
 python tps_baseline_mueller.py
@@ -40,7 +39,7 @@ python tps_baseline_mueller.py
 python eval/evaluate_mueller.py
 ```
 
-for a toy-potential and 
+to generate and evaluate transitions for the Müller-Brown toy-potential or use
 
 ```bash
 python tps_baseline.py --mechanism two-way-shooting --num_paths 1000 --states phi-psi
@@ -50,7 +49,9 @@ python tps_baseline.py --mechanism two-way-shooting --num_paths 1000 --states rm
 python eval/evaluate_tps.py
 ```
 
-for ALDP respectively. In both cases, you might need to change the paths that you want to evaluate.
+for ALDP respectively. 
+
+**Note:** In both cases, you might need to change the paths that you want to evaluate in ``evaluate_mueller.py` or `evaluate_tps.py`.
 
 ## Run our method
 To sample trajectories with our method, we provide ready to go config files in `configs/`. You can run them with
