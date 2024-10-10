@@ -9,8 +9,9 @@ A novel variational approach to transition path sampling (TPS) based on the Doob
 </p>
 <p align="center">
 <img src="visualizations/aldp.gif" alt="Visualization of alanine dipeptide transitioning between two meta-stable states"/>
-
-<i>In this animation, you can see one transition path of alanine dipeptide transitioning between two meta-stable states. The path is sampled using our method.</i>
+</p>
+<p align="center">
+<i>A transition path of alanine dipeptide sampled using our method.</i>
 </p>
 
 ## Setup
