@@ -9,6 +9,8 @@ A novel variational approach to transition path sampling (TPS) based on the Doob
 </p>
 <p align="center">
 <img src="visualizations/aldp.gif" alt="Visualization of alanine dipeptide transitioning between two meta-stable states"/>
+
+<i>In this animation, you can see one transition path of alanine dipeptide transitioning between two meta-stable states. The path is sampled using our method.</i>
 </p>
 
 ## Setup
@@ -51,7 +53,7 @@ python eval/evaluate_tps.py
 
 for ALDP respectively. 
 
-**Note:** In both cases, you might need to change the paths that you want to evaluate in ``evaluate_mueller.py` or `evaluate_tps.py`.
+**Note:** In both cases, you might need to change the paths that you want to evaluate in `evaluate_mueller.py` or `evaluate_tps.py`.
 
 ## Run our method
 To sample trajectories with our method, we provide ready to go config files in `configs/`. You can run them with
