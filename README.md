@@ -1,7 +1,8 @@
 <h1 align="center">Doob’s Lagrangian: A Sample-Efficient Variational Approach to Transition Path Sampling</h1>
 <p align="center">
-<a href="https://github.com/plainerman/variational-doob"><img src="https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54" alt="Built with Python"/></a>
-<a href="https://github.com/plainerman/variational-doob/blob/main/notebooks/tps_gaussian.ipynb"><img src="https://img.shields.io/badge/jupyter-%23FA0F00.svg?style=for-the-badge&logo=jupyter&logoColor=white" alt="Jupyter"/></a>
+<a href="https://arxiv.org/abs/2410.07974"><img src="https://img.shields.io/badge/arXiv-b31b1b?style=for-the-badge&logo=arxiv" alt="arXiv"/></a>
+<a href="https://github.com/plainerman/variational-doob"><img src="https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54" alt="Python"/></a>
+<a href="https://github.com/plainerman/variational-doob/blob/main/notebooks/tps_gaussian.ipynb"><img src="https://img.shields.io/badge/jupyter-e37e3d.svg?style=for-the-badge&logo=jupyter&logoColor=white" alt="Jupyter"/></a>
 <a href="https://github.com/jax-ml/jax"><img src="https://img.shields.io/badge/library-JAX-5f0964?style=for-the-badge" alt="Jax"/></a>
 </p>
 <p align="center">
@@ -73,3 +74,15 @@ python main.py --config configs/aldp_diagonal_single_gaussian.yaml
 ```
 
 for real molecular systems.
+
+## Citation
+If you find our work useful, please consider citing our paper:
+
+```bibtex
+@inproceedings{du2024doob,
+	author = {Du, Yuanqi and Plainer, Michael and Brekelmans, Rob and Duan, Chenru and No{\'e}, Frank and Gomes, Carla P. and Aspuru-Guzik, Al{\'a}n and Neklyudov, Kirill},
+	title = {Doob’s Lagrangian: A Sample-Efficient Variational Approach to Transition Path Sampling},
+	year = {2024},
+	booktitle = {Advances in Neural Information Processing Systems},
+}
+```
