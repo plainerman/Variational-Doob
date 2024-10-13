@@ -2,7 +2,7 @@
 <p align="center">
 <a href="https://arxiv.org/abs/2410.07974"><img src="https://img.shields.io/badge/arXiv-b31b1b?style=for-the-badge&logo=arxiv" alt="arXiv"/></a>
 <a href="https://github.com/plainerman/variational-doob"><img src="https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54" alt="Python"/></a>
-<a href="https://github.com/plainerman/variational-doob/blob/main/notebooks/tps_gaussian.ipynb"><img src="https://img.shields.io/badge/jupyter-e37e3d.svg?style=for-the-badge&logo=jupyter&logoColor=white" alt="Jupyter"/></a>
+<a href="https://colab.research.google.com/drive/1FcmEbec06cH4yk0t8vOIt8r1Gm-VjQZ0?usp=sharing"><img src="https://img.shields.io/badge/Colab-e37e3d.svg?style=for-the-badge&logo=googlecolab&logoColor=white" alt="Jupyter"/></a>
 <a href="https://github.com/jax-ml/jax"><img src="https://img.shields.io/badge/library-JAX-5f0964?style=for-the-badge" alt="Jax"/></a>
 </p>
 <p align="center">
@@ -13,6 +13,20 @@ A novel variational approach to transition path sampling (TPS) based on the Doob
 </p>
 <p align="center">
 <i>A transition path of alanine dipeptide sampled using our method.</i>
+</p>
+
+<p align="center">
+<img src="visualizations/training-optimized.gif" alt=""/>
+</p>
+<p align="center">
+<i>Visualization of the optimization process using our algorithm for 2D potential.</i>
+</p>
+
+<p align="center">
+<img src="visualizations/simulation-optimized.gif" alt=""/>
+</p>
+<p align="center">
+<i>Running the deterministic and stochastic simulations using our algorithm for 2D potential.</i>
 </p>
 
 ## Setup
