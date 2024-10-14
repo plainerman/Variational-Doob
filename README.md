@@ -46,7 +46,7 @@ to install the dependencies and setup a virtual environment. Either activate the
 
 ## Getting started
 
-The best way to understand our method is to look at [the jupyter notebook](notebooks/tps_gaussian.ipynb) which contains the necessary code for 2D potentials in one place. 
+The best way to understand our method is to look at [the google colab notebook](https://colab.research.google.com/drive/1FcmEbec06cH4yk0t8vOIt8r1Gm-VjQZ0?usp=sharing) which contains the necessary code for 2D potentials in one place. 
 However, this notebook is very limited in scope and only contains the most basic examples. In the following, we will show the interfaces to run more complex examples. You can also look at the setups in the `configs/` folder.
 
 ## Running the baselines
