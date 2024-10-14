@@ -42,56 +42,56 @@ def interpolate(points, steps):
 
 if __name__ == '__main__':
     # variable or fixed length?
-    variable = True
     num_paths = 1000
 
-    save_dir = f"out/baselines/mueller"
-    if variable:
-        save_dir += "-variable"
+    for variable in [False, True]:
+        save_dir = f"out/baselines/mueller"
+        if variable:
+            save_dir += "-variable"
 
-    os.makedirs(save_dir, exist_ok=True)
+        os.makedirs(save_dir, exist_ok=True)
 
-    xi = 5
-    dt = 1e-4
-    T = 275e-4
-    N = 0 if variable else int(T / dt)
+        xi = 5
+        dt = 1e-4
+        T = 275e-4
+        N = 0 if variable else int(T / dt)
 
-    system = System.from_name('mueller_brown', float('inf'))
-    initial_trajectory = [t.reshape(1, 2) for t in interpolate(jnp.array([system.A, system.B]), 100 if variable else N)]
+        system = System.from_name('mueller_brown', float('inf'))
+        initial_trajectory = [t.reshape(1, 2) for t in interpolate(jnp.array([system.A, system.B]), 100 if variable else N)]
 
-    @jax.jit
-    def step(_x, _key):
-        """Perform one step of forward euler"""
-        return _x - dt * system.dUdx(_x) + jnp.sqrt(dt) * xi * jax.random.normal(_key, _x.shape)
+        @jax.jit
+        def step(_x, _key):
+            """Perform one step of forward euler"""
+            return _x - dt * system.dUdx(_x) + jnp.sqrt(dt) * xi * jax.random.normal(_key, _x.shape)
 
 
-    tps_config = tps1.FirstOrderSystem(
-        jax.jit(lambda s: jnp.linalg.norm(s - system.A) <= 0.1),
-        jax.jit(lambda s: jnp.linalg.norm(s - system.B) <= 0.1),
-        step
-    )
+        tps_config = tps1.FirstOrderSystem(
+            jax.jit(lambda s: jnp.linalg.norm(s - system.A) <= 0.1),
+            jax.jit(lambda s: jnp.linalg.norm(s - system.B) <= 0.1),
+            step
+        )
 
-    for method, name in [
-        (tps1.one_way_shooting, 'one-way-shooting'),
-        (tps1.two_way_shooting, 'two-way-shooting'),
-    ]:
-        if os.path.exists(f'{save_dir}/paths-{name}.npy') and os.path.exists(f'{save_dir}/stats-{name}.json'):
-            print(f"Skipping {name} because the results are already present")
+        for method, name in [
+            (tps1.one_way_shooting, 'one-way-shooting'),
+            (tps1.two_way_shooting, 'two-way-shooting'),
+        ]:
+            if os.path.exists(f'{save_dir}/paths-{name}.npy') and os.path.exists(f'{save_dir}/stats-{name}.json'):
+                print(f"Skipping {name} because the results are already present")
 
-            paths = np.load(f'{save_dir}/paths-{name}.npy', allow_pickle=True)
-            paths = [jnp.array(p.astype(np.float32)) for p in paths]
-            with open(f'{save_dir}/stats-{name}.json', 'r') as fp:
-                statistics = json.load(fp)
-        else:
-            print('Generating paths for', name)
-            paths, statistics = tps1.mcmc_shooting(tps_config, method, initial_trajectory, num_paths,
-                                                   jax.random.PRNGKey(1), warmup=0, fixed_length=N)
+                paths = np.load(f'{save_dir}/paths-{name}.npy', allow_pickle=True)
+                paths = [jnp.array(p.astype(np.float32)) for p in paths]
+                with open(f'{save_dir}/stats-{name}.json', 'r') as fp:
+                    statistics = json.load(fp)
+            else:
+                print('Generating paths for', name)
+                paths, statistics = tps1.mcmc_shooting(tps_config, method, initial_trajectory, num_paths,
+                                                       jax.random.PRNGKey(1), warmup=0, fixed_length=N)
 
-            paths = [jnp.array(p) for p in paths]
+                paths = [jnp.array(p) for p in paths]
 
-            np.save(f'{save_dir}/paths-{name}.npy', np.array(paths, dtype=object), allow_pickle=True)
-            with open(f'{save_dir}/stats-{name}.json', 'w') as fp:
-                json.dump(statistics, fp)
+                np.save(f'{save_dir}/paths-{name}.npy', np.array(paths, dtype=object), allow_pickle=True)
+                with open(f'{save_dir}/stats-{name}.json', 'w') as fp:
+                    json.dump(statistics, fp)
 
-        system.plot(trajectories=paths)
-        show_or_save_fig(save_dir, f'mueller-{name}', 'pdf')
+            system.plot(trajectories=paths)
+            show_or_save_fig(save_dir, f'mueller-{name}', 'pdf')
