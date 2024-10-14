@@ -59,6 +59,11 @@ if __name__ == '__main__':
         global_minimum_energy = min(global_minimum_energy, minimize(system.U, point).fun)
     print("Global minimum energy", global_minimum_energy)
 
+    all_paths = [(name, path, warmup) for name, path, warmup in all_paths if os.path.exists(path)]
+    print('Running script for the following paths:')
+    [print(name, path) for name, path, warmup in all_paths]
+    assert len(all_paths) > 0, 'No paths found, please consider running tps_baseline_mueller.py first.'
+
     all_paths = [(name, load(path)[warmup:],) for name, path, warmup in all_paths]
     [print(name, len(path)) for name, path in all_paths]
 
