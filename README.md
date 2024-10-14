@@ -54,8 +54,7 @@ You can either use the TPS shooting baselines [provided by us](https://github.co
 
 ```bash
 python tps_baseline_mueller.py
-# For this to work, you need to specify which baselines to run by changing the all_paths variable in the script
-python eval/evaluate_mueller.py
+PYTHONPATH='.' python eval/evaluate_mueller.py
 ```
 
 to generate and evaluate transitions for the Müller-Brown toy-potential or use
@@ -65,12 +64,12 @@ python tps_baseline.py --mechanism two-way-shooting --num_paths 1000 --states ph
 # num_steps compiles multiple MD steps into a single one. This makes sampling faster but increases startup time. Only really worth it for long running simulations
 python tps_baseline.py --mechanism two-way-shooting --num_paths 100 --fixed_length 1000 --states phi-psi --num_steps 50
 python tps_baseline.py --mechanism two-way-shooting --num_paths 1000 --states rmsd
-python eval/evaluate_tps.py
+PYTHONPATH='.' python eval/evaluate_tps.py
 ```
 
 for ALDP respectively. 
 
-**Note:** In both cases, you might need to change the paths that you want to evaluate in `evaluate_mueller.py` or `evaluate_tps.py`.
+**Note:** In both cases, you might want to change the paths that you want to generate and evaluate in the baseline or evaluation scripts.
 
 ## Run our method
 To sample trajectories with our method, we provide ready to go config files in `configs/`. You can run them with

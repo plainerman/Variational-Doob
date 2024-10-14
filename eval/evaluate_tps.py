@@ -130,6 +130,11 @@ if __name__ == '__main__':
         ('two-way-shooting-fixed-length-cv', './out/baselines/alanine-two-way-shooting-1000steps', 0),
     ]
 
+    all_paths = [(name, path, warmup) for name, path, warmup in all_paths if os.path.exists(path)]
+    print('Running script for the following paths:')
+    [print(name, path) for name, path, warmup in all_paths]
+    assert len(all_paths) > 0, 'No paths found, please consider running tps_baseline_mueller.py first.'
+
     # print relevant statistics:
     for name, file_path, _warmup in all_paths:
         with open(f'{file_path}/stats.json', 'r') as fp:
