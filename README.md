@@ -36,13 +36,13 @@ You can use the `environment.yml` file to setup this project. However, it only w
 conda env create -f environment.yml
 ```
 
-We also provide a requirements.txt, and a pyproject.toml. So if you are using [uv](https://github.com/astral-sh/uv) you can instead run
+We also provide a requirements.txt, and a pyproject.toml. So if you are using [pixi](https://github.com/prefix-dev/pixi) you can instead run
 
 ```bash
-uv sync
+pixi install --frozen
 ```
 
-to install the dependencies and setup a virtual environment. Either activate the environment or use the provided `uv run` command to run the scripts.
+to install the dependencies and setup a virtual environment. Either activate the environment with `pixi shell` or use the provided `pixi run` command to run the scripts.
 
 ## Getting started
 
