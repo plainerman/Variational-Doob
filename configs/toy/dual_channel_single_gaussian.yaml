@@ -11,7 +11,8 @@ num_gaussians: 1
 trainable_weights: False
 base_sigma: 2.5e-2
 
-epochs: 20000
+lr: 1e-2
+epochs: 1000
 BS: 512
 
 num_paths: 1000
