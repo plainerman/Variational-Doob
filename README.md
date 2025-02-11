@@ -93,9 +93,13 @@ If you find our work useful, please consider citing our paper:
 
 ```bibtex
 @inproceedings{du2024doob,
-	author = {Du, Yuanqi and Plainer, Michael and Brekelmans, Rob and Duan, Chenru and No{\'e}, Frank and Gomes, Carla P. and Aspuru-Guzik, Al{\'a}n and Neklyudov, Kirill},
-	title = {Doob’s Lagrangian: A Sample-Efficient Variational Approach to Transition Path Sampling},
-	year = {2024},
-	booktitle = {Advances in Neural Information Processing Systems},
+  author = {Du, Yuanqi and Plainer, Michael and Brekelmans, Rob and Duan, Chenru and No{\'e}, Frank and Gomes, Carla P. and Aspuru-Guzik, Al{\'a}n and Neklyudov, Kirill},
+  title = {Doob’s Lagrangian: A Sample-Efficient Variational Approach to Transition Path Sampling},
+  booktitle = {Advances in Neural Information Processing Systems},
+  editor = {Globerson, A. and Mackey, L. and Belgrave, D. and Fan, A. and Paquet, U. and Tomczak, J. and Zhang, C.},
+  pages = {65791--65822},
+  publisher = {Curran Associates, Inc.},
+  volume = {37},
+  year = {2024}
 }
 ```
