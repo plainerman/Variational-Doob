@@ -29,7 +29,21 @@ A novel variational approach to transition path sampling (TPS) based on the Doob
 <i>Running the deterministic and stochastic simulations using our algorithm for 2D potential.</i>
 </p>
 
-## Setup
+# FAQ
+## I am getting NaN values when running experiments on alanine dipeptide!
+This is an issue on certain devices, and, so far, we haven't figured out the underlying reason. However, we have found out that:
+
+1. Changing your floats to 64-bit precision prevents this problem from happening (at least on our machines), albeit at ~2x slower performance. To change to float64, simply search for all instances of `jnp.float32` (as can be seen [here](https://github.com/search?q=repo%3Aplainerman%2FVariational-Doob%20jnp.float32&type=code)) and change it to `jnp.float64`.
+
+2. First-order systems usually do not exhibit this behavior. So you can also change your `ode` in the config (e.g., [here](https://github.com/plainerman/Variational-Doob/blob/b3836998080569af5deaaa5bd1ef6ad0993e0bd9/configs/aldp_diagonal_single_gaussian.yaml#L7)) to `first_order` and see if this resolves the issue.  In our tests, first-order ODE was sufficient for most setups. 
+
+# Getting started
+
+The best way to understand our method is to look at [the google colab notebook](https://colab.research.google.com/drive/1FcmEbec06cH4yk0t8vOIt8r1Gm-VjQZ0?usp=sharing) which contains the necessary code for 2D potentials in one place. 
+However, this notebook is very limited in scope and only contains the most basic examples. In the following, we will show the interfaces to run more complex examples. You can also look at the setups in the `configs/` folder.
+
+
+# Setup
 
 You can use the `environment.yml` file to setup this project. However, it only works on CPU.
 ```bash
@@ -44,12 +58,9 @@ pixi install --frozen
 
 to install the dependencies and setup a virtual environment. Either activate the environment with `pixi shell` or use the provided `pixi run` command to run the scripts.
 
-## Getting started
+# Running the code
 
-The best way to understand our method is to look at [the google colab notebook](https://colab.research.google.com/drive/1FcmEbec06cH4yk0t8vOIt8r1Gm-VjQZ0?usp=sharing) which contains the necessary code for 2D potentials in one place. 
-However, this notebook is very limited in scope and only contains the most basic examples. In the following, we will show the interfaces to run more complex examples. You can also look at the setups in the `configs/` folder.
-
-## Running the baselines
+## Baselines
 You can either use the TPS shooting baselines [provided by us](https://github.com/plainerman/variational-doob/releases/tag/camera-ready), or re-create them by running
 
 ```bash
@@ -71,7 +82,7 @@ for ALDP respectively.
 
 **Note:** In both cases, you might want to change the paths that you want to generate and evaluate in the baseline or evaluation scripts.
 
-## Run our method
+## Our Method
 To sample trajectories with our method, we provide ready to go config files in `configs/`. You can run them with
 
 ```bash
@@ -88,7 +99,7 @@ python main.py --config configs/aldp_diagonal_single_gaussian.yaml
 
 for real molecular systems.
 
-## Citation
+# Citation
 If you find our work useful, please consider citing our paper:
 
 ```bibtex
