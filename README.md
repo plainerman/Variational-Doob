@@ -88,7 +88,7 @@ To sample trajectories with our method, we provide ready to go config files in `
 ```bash
 python main.py --config configs/toy/mueller_single_gaussian.yaml
 python main.py --config configs/toy/dual_channel_single_gaussian.yaml
-python main.py --config configs/toy/dual_channel_two_gaussian.yaml
+python main.py --config configs/toy/dual_channel_two_gaussians.yaml
 ```
 
 for the toy examples and
