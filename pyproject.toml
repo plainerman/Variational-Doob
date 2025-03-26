@@ -22,10 +22,9 @@ rdkit = "==2024.3.5"
 parmed = "==4.2.2"
 
 [tool.pixi.pypi-dependencies]
-jax = "==0.4.23"
-jaxlib = "==0.4.23"
-flax = "==0.8.3"
-dmff = { git = "https://github.com/deepmodeling/DMFF" }
+jax = "==0.5.3"
+flax = ">=0.8.3"
+dmff = { git = "https://github.com/plainerman/DMFF" }
 
 [tool.pixi.target.linux-64.pypi-dependencies]
-jax = { version = "==0.4.23", extras = ["cuda12"] }
+jax = { version = "==0.5.3", extras = ["cuda12"] }
