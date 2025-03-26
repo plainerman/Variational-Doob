@@ -9,7 +9,7 @@ class PeriodicPathHistogram:
         self.bins = bins
         self.interpolate = interpolate
         self.scale = scale
-        self.hist = jnp.zeros((bins, bins), dtype=jnp.float32)
+        self.hist = jnp.zeros((bins, bins), dtype=jnp.float64)
 
     def add_paths(self, paths: list[jnp.ndarray], factors: list[float] = None):
         for path, factor in tqdm(zip(paths, factors or [1] * len(paths)), total=len(paths)):

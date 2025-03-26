@@ -55,7 +55,7 @@ class System:
         plot = partial(toy_plot_energy_surface,
                        U=U, states=list(zip(['A', 'B'], [A, B])), xlim=xlim, ylim=ylim, alpha=1.0
                        )
-        mass = jnp.array([1.0, 1.0], dtype=jnp.float32)
+        mass = jnp.array([1.0, 1.0], dtype=jnp.float64)
         return cls(U, A, B, mass, plot, force_clip)
 
     @classmethod
@@ -64,10 +64,10 @@ class System:
         assert_same_molecule(A_pdb, B_pdb)
 
         mass = [a.element.mass.value_in_unit(unit.dalton) for a in A_pdb.topology.atoms()]
-        mass = jnp.broadcast_to(jnp.array(mass, dtype=jnp.float32).reshape(-1, 1), (len(mass), 3)).reshape(-1)
+        mass = jnp.broadcast_to(jnp.array(mass, dtype=jnp.float64).reshape(-1, 1), (len(mass), 3)).reshape(-1)
 
-        A = jnp.array(A_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer), dtype=jnp.float32)
-        B = jnp.array(B_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer), dtype=jnp.float32)
+        A = jnp.array(A_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer), dtype=jnp.float64)
+        B = jnp.array(B_pdb.getPositions(asNumpy=True).value_in_unit(unit.nanometer), dtype=jnp.float64)
         num_atoms = A.shape[0]
         A, B = kabsch_align(A, B)
         A, B = A.reshape(-1), B.reshape(-1)

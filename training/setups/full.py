@@ -42,8 +42,8 @@ class FullRankSpline(nn.Module):
 
         ndim = self.A.shape[0]
         t = t / self.T
-        t_grid = jnp.linspace(0, 1, self.n_points, dtype=jnp.float32)
-        S_0 = jnp.log(self.base_sigma) * jnp.eye(ndim, dtype=jnp.float32)
+        t_grid = jnp.linspace(0, 1, self.n_points, dtype=jnp.float64)
+        S_0 = jnp.log(self.base_sigma) * jnp.eye(ndim, dtype=jnp.float64)
         S_0_vec = S_0[jnp.tril_indices(ndim)]
         mu_params = self.param('mu_params', lambda rng: jnp.linspace(self.A, self.B, self.n_points)[1:-1])
         S_params = self.param('S_params', lambda rng: jnp.linspace(S_0_vec, S_0_vec, self.n_points)[1:-1])
@@ -52,7 +52,7 @@ class FullRankSpline(nn.Module):
 
         @jax.vmap
         def get_tril(v):
-            a = jnp.zeros((ndim, ndim), dtype=jnp.float32)
+            a = jnp.zeros((ndim, ndim), dtype=jnp.float64)
             a = a.at[jnp.tril_indices(ndim)].set(v)
             return a
 
@@ -66,12 +66,12 @@ class FullRankSpline(nn.Module):
             raise ValueError(f"Interpolation method {self.interpolation} not recognized.")
 
         S = get_tril(S)
-        S = jnp.tril(2 * jax.nn.sigmoid(S) - 1.0, k=-1) + jnp.eye(ndim, dtype=jnp.float32)[None, ...] * jnp.exp(S)
+        S = jnp.tril(2 * jax.nn.sigmoid(S) - 1.0, k=-1) + jnp.eye(ndim, dtype=jnp.float64)[None, ...] * jnp.exp(S)
 
         if self.trainable_weights:
-            w_logits = self.param('w_logits', nn.initializers.zeros_init(), (self.num_mixtures,), dtype=jnp.float32)
+            w_logits = self.param('w_logits', nn.initializers.zeros_init(), (self.num_mixtures,), dtype=jnp.float64)
         else:
-            w_logits = jnp.zeros(self.num_mixtures, dtype=jnp.float32)
+            w_logits = jnp.zeros(self.num_mixtures, dtype=jnp.float64)
 
         out = (mu, S, w_logits)
         if self.transform:
@@ -94,9 +94,9 @@ class FullRankWrapper(WrappedModule):
         num_mixtures = self.num_mixtures
 
         h_mu = (1 - t) * self.A + t * self.B
-        S_0 = jnp.eye(ndim, dtype=jnp.float32)
-        S_0 = S_0 * jnp.vstack([self.base_sigma * jnp.ones((ndim // 2, 1), dtype=jnp.float32),
-                                self.base_sigma * jnp.ones((ndim // 2, 1), dtype=jnp.float32)])
+        S_0 = jnp.eye(ndim, dtype=jnp.float64)
+        S_0 = S_0 * jnp.vstack([self.base_sigma * jnp.ones((ndim // 2, 1), dtype=jnp.float64),
+                                self.base_sigma * jnp.ones((ndim // 2, 1), dtype=jnp.float64)])
         S_0 = S_0[None, ...]
         h_S = (1 - 2 * t * (1 - t))[..., None] * S_0
 
@@ -109,19 +109,19 @@ class FullRankWrapper(WrappedModule):
         @jax.vmap  # once for num_mixtures
         @jax.vmap  # once for batch
         def get_tril(v):
-            a = jnp.zeros((ndim, ndim), dtype=jnp.float32)
+            a = jnp.zeros((ndim, ndim), dtype=jnp.float64)
             a = a.at[jnp.tril_indices(ndim)].set(v)
             return a
 
         S = h[:, self.num_mixtures * ndim:].reshape(BS, self.num_mixtures, ndim * (ndim + 1) // 2)
         S = get_tril(S)
-        S = jnp.tril(2 * jax.nn.sigmoid(S) - 1.0, k=-1) + jnp.eye(ndim, dtype=jnp.float32)[None, ...] * jnp.exp(S)
+        S = jnp.tril(2 * jax.nn.sigmoid(S) - 1.0, k=-1) + jnp.eye(ndim, dtype=jnp.float64)[None, ...] * jnp.exp(S)
         S = h_S[:, None, ...] + 2 * ((1 - t) * t)[..., None, None] * S
 
         if self.trainable_weights:
-            w_logits = self.param('w_logits', nn.initializers.zeros_init(), (num_mixtures,), dtype=jnp.float32)
+            w_logits = self.param('w_logits', nn.initializers.zeros_init(), (num_mixtures,), dtype=jnp.float64)
         else:
-            w_logits = jnp.zeros(num_mixtures, dtype=jnp.float32)
+            w_logits = jnp.zeros(num_mixtures, dtype=jnp.float64)
 
         return mu, S, w_logits
 
@@ -133,8 +133,8 @@ class FullRankSetup(DriftedSetup):
             ndim = self.model_q.A.shape[-1]
 
             key = jax.random.split(key)
-            t = self.T * jax.random.uniform(key[0], [BS, 1], dtype=jnp.float32)
-            eps = jax.random.normal(key[1], [BS, ndim, 1], dtype=jnp.float32)
+            t = self.T * jax.random.uniform(key[0], [BS, 1], dtype=jnp.float64)
+            eps = jax.random.normal(key[1], [BS, ndim, 1], dtype=jnp.float64)
 
             def v_t(_eps, _t):
                 _mu_t, _S_t_val, _w_logits, _dmudt, _dSdt_val = forward_and_derivatives(state_q, _t, params_q)

@@ -29,7 +29,7 @@ class DiagonalSpline(nn.Module):
         ndim = self.A.shape[0]
         BS = t.shape[0]
         t = t / self.T
-        t_grid = jnp.linspace(0, 1, self.n_points, dtype=jnp.float32)
+        t_grid = jnp.linspace(0, 1, self.n_points, dtype=jnp.float64)
 
         A = (jnp.ones((self.num_mixtures, ndim), dtype=self.A.dtype) * self.A).reshape(-1)
         B = (jnp.ones((self.num_mixtures, ndim), dtype=self.A.dtype) * self.B).reshape(-1)
@@ -56,9 +56,9 @@ class DiagonalSpline(nn.Module):
         sigma = jnp.exp(sigma.reshape(BS, self.num_mixtures, ndim))
 
         if self.trainable_weights:
-            w_logits = self.param('w_logits', nn.initializers.zeros_init(), (self.num_mixtures,), dtype=jnp.float32)
+            w_logits = self.param('w_logits', nn.initializers.zeros_init(), (self.num_mixtures,), dtype=jnp.float64)
         else:
-            w_logits = jnp.zeros(self.num_mixtures, dtype=jnp.float32)
+            w_logits = jnp.zeros(self.num_mixtures, dtype=jnp.float64)
 
         out = (mu, sigma, w_logits)
         if self.transform:
@@ -89,9 +89,9 @@ class DiagonalWrapper(WrappedModule):
         )
 
         if self.trainable_weights:
-            w_logits = self.param('w_logits', nn.initializers.zeros_init(), (num_mixtures,), dtype=jnp.float32)
+            w_logits = self.param('w_logits', nn.initializers.zeros_init(), (num_mixtures,), dtype=jnp.float64)
         else:
-            w_logits = jnp.zeros(num_mixtures, dtype=jnp.float32)
+            w_logits = jnp.zeros(num_mixtures, dtype=jnp.float64)
 
         return mu, sigma, w_logits
 
@@ -104,8 +104,8 @@ class DiagonalSetup(DriftedSetup):
             ndim = self.model_q.A.shape[-1]
             key = jax.random.split(key)
 
-            t = self.T * jax.random.uniform(key[0], [BS, 1], dtype=jnp.float32)
-            eps = jax.random.normal(key[1], [BS, 1, ndim], dtype=jnp.float32)
+            t = self.T * jax.random.uniform(key[0], [BS, 1], dtype=jnp.float64)
+            eps = jax.random.normal(key[1], [BS, 1, ndim], dtype=jnp.float64)
 
             def v_t(_eps, _t):
                 """This function is equal to v_t * xi ** 2."""

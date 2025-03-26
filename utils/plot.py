@@ -179,7 +179,7 @@ def _plot_trajectories(trajectories: ArrayLike, bins: int, xlim: ArrayLike, ylim
 
 def plot_u_t(system: System, setup: QSetup, state_q: TrainState, T: float, save_dir: str, name: str, frames: int = 100,
              fps: int = 10):
-    t = T * jnp.linspace(0, 1, frames, dtype=jnp.float32).reshape((-1, 1))
+    t = T * jnp.linspace(0, 1, frames, dtype=jnp.float64).reshape((-1, 1))
     mu_t, sigma_t, _ = state_q.apply_fn(state_q.params, t)
 
     _u_t_func = jax.jit(lambda _t, _points: setup.u_t(state_q, _t * jnp.ones((len(_points), 1)), _points, True))
@@ -192,7 +192,7 @@ def plot_u_t(system: System, setup: QSetup, state_q: TrainState, T: float, save_
 
     x_lim, y_lim = get_lim()
     x, y = jnp.meshgrid(jnp.linspace(x_lim[0], x_lim[1], 10), jnp.linspace(y_lim[0], y_lim[1], 10))
-    points = jnp.vstack([x.ravel(), y.ravel()], dtype=jnp.float32).T
+    points = jnp.vstack([x.ravel(), y.ravel()], dtype=jnp.float64).T
 
     x_all, y_all = [], []
     u_all, v_all = [], []

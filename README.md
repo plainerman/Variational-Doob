@@ -29,14 +29,6 @@ A novel variational approach to transition path sampling (TPS) based on the Doob
 <i>Running the deterministic and stochastic simulations using our algorithm for 2D potential.</i>
 </p>
 
-# FAQ
-## I am getting NaN values when running experiments on alanine dipeptide!
-This is an issue on certain devices, and, so far, we haven't figured out the underlying reason. However, we have found out that:
-
-1. Changing your floats to 64-bit precision prevents this problem from happening (at least on our machines), albeit at ~2x slower performance. To change to float64, simply search for all instances of `jnp.float32` (as can be seen [here](https://github.com/search?q=repo%3Aplainerman%2FVariational-Doob%20jnp.float32&type=code)) and change it to `jnp.float64`.
-
-2. First-order systems usually do not exhibit this behavior. So you can also change your `ode` in the config (e.g., [here](https://github.com/plainerman/Variational-Doob/blob/b3836998080569af5deaaa5bd1ef6ad0993e0bd9/configs/aldp_diagonal_single_gaussian.yaml#L7)) to `first_order` and see if this resolves the issue.  In our tests, first-order ODE was sufficient for most setups. 
-
 # Getting started
 
 The best way to understand our method is to look at [the google colab notebook](https://colab.research.google.com/drive/1FcmEbec06cH4yk0t8vOIt8r1Gm-VjQZ0?usp=sharing) which contains the necessary code for 2D potentials in one place. 

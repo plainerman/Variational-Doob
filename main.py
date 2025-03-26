@@ -123,13 +123,13 @@ def main():
         B = system.B
     elif args.ode == 'second_order':
         # We pad the A and B matrices with zeros to account for the velocity
-        A = jnp.hstack([system.A, jnp.zeros_like(system.A)], dtype=jnp.float32)
-        B = jnp.hstack([system.B, jnp.zeros_like(system.B)], dtype=jnp.float32)
+        A = jnp.hstack([system.A, jnp.zeros_like(system.A)], dtype=jnp.float64)
+        B = jnp.hstack([system.B, jnp.zeros_like(system.B)], dtype=jnp.float64)
 
         xi_velocity = jnp.ones_like(system.A) * xi
         xi_pos = jnp.zeros_like(xi_velocity) + args.xi_pos_noise
 
-        xi = jnp.concatenate((xi_pos, xi_velocity), axis=-1, dtype=jnp.float32)
+        xi = jnp.concatenate((xi_pos, xi_velocity), axis=-1, dtype=jnp.float64)
     else:
         raise ValueError(f"Unknown ODE: {args.ode}")
 
@@ -144,7 +144,7 @@ def main():
     key = jax.random.PRNGKey(args.seed)
     key, init_key = jax.random.split(key)
 
-    params_q = setup.model_q.init(init_key, jnp.zeros([args.BS, 1], dtype=jnp.float32))
+    params_q = setup.model_q.init(init_key, jnp.zeros([args.BS, 1], dtype=jnp.float64))
 
     optimizer_q = optax.adam(learning_rate=args.lr)
     state_q = train_state.TrainState.create(apply_fn=setup.model_q.apply, params=params_q, tx=optimizer_q)
@@ -186,15 +186,15 @@ def main():
     log_scale(args.log_plots, False, True)
     show_or_save_fig(args.save_dir, 'loss_plot', args.extension)
 
-    t = args.T * jnp.linspace(0, 1, args.BS, dtype=jnp.float32).reshape((-1, 1))
+    t = args.T * jnp.linspace(0, 1, args.BS, dtype=jnp.float64).reshape((-1, 1))
     key, path_key = jax.random.split(key)
     mu_t, _, w_logits = state_q.apply_fn(state_q.params, t)
     w = jax.nn.softmax(w_logits)
     print('Weights of mixtures:', w)
 
     key, init_key = jax.random.split(key)
-    x_0 = jnp.ones((args.num_paths, A.shape[0]), dtype=jnp.float32) * A
-    eps = jax.random.normal(key, shape=x_0.shape, dtype=jnp.float32)
+    x_0 = jnp.ones((args.num_paths, A.shape[0]), dtype=jnp.float64) * A
+    eps = jax.random.normal(key, shape=x_0.shape, dtype=jnp.float64)
     x_0 += args.base_sigma * eps
 
     x_t_det = setup.sample_paths(state_q, x_0, args.dt, args.T, args.BS, None)

@@ -7,8 +7,8 @@ def compute_spline_coefficients(x_knots, y_knots):
     h = jnp.diff(x_knots)
     b = (jnp.diff(y_knots, axis=0).T / h).T
 
-    u = jnp.zeros(n + 1, dtype=jnp.float32)
-    v = jnp.zeros((n + 1,) + y_knots.shape[1:], dtype=jnp.float32)
+    u = jnp.zeros(n + 1, dtype=jnp.float64)
+    v = jnp.zeros((n + 1,) + y_knots.shape[1:], dtype=jnp.float64)
 
     u = u.at[1:n].set(2 * (h[:-1] + h[1:]))
     v = v.at[1:n].set(6 * (b[1:] - b[:-1]))
